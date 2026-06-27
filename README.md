@@ -19,7 +19,7 @@
 > 禁止ルールは `rules/*.json` に一元管理し、Claude Code でも Cursor でも同じルールが適用される。
 > 新しい禁止対象を増やしたいときは、原則 JSON に1行追記するだけで全エージェントへ反映される。
 
-```
+```text
 エージェントのHook入力(JSON)
         │
         ▼
@@ -44,6 +44,7 @@
 
 | ドキュメント | 内容 |
 | --- | --- |
+| [docs/00-conventions.md](docs/00-conventions.md) | リポジトリ規約（正本）。各エージェントのルールファイルはこれを参照する |
 | [docs/01-overview.md](docs/01-overview.md) | 目的・スコープ・対応エージェント・用語 |
 | [docs/02-architecture.md](docs/02-architecture.md) | 共通エンジン＋アダプタ設計、ディレクトリ構成、データフロー |
 | [docs/03-rules-spec.md](docs/03-rules-spec.md) | ルールJSONの仕様・追加方法 |
@@ -55,7 +56,7 @@
 
 ## ディレクトリ構成（実装後の目標形）
 
-```
+```text
 ai-agent-guardrail/
 ├── README.md
 ├── docs/                      # 設計ドキュメント（本リポジトリの現成果物）

@@ -1,6 +1,12 @@
-# CLAUDE.md
+---
+description: ai-agent-guardrail リポジトリの規約。正本は docs/00-conventions.md
+globs:
+alwaysApply: true
+---
 
-このリポジトリの規約は [docs/00-conventions.md](docs/00-conventions.md) を正本とする。
+# リポジトリ規約
+
+このリポジトリの規約は `docs/00-conventions.md` を正本とする。
 作業を始める前に必ず参照すること。
 
 要点（詳細は正本を参照）:
