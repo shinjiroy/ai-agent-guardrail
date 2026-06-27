@@ -19,33 +19,16 @@ guardrail_evaluate_files_result() {
   local cwd="$3"
   local rules_file="$4"
 
-  local normalized_path
+  local normalized_path rule_id
   normalized_path="$(normalize_path "$path" "$cwd")"
 
-  local rule_count i rule
-  rule_count="$(jq '.rules | length' "$rules_file")"
-
-  for (( i = 0; i < rule_count; i++ )); do
-    rule="$(jq -c ".rules[$i]" "$rules_file")"
-
-    if ! jq -e --arg op "$operation" '.operations | index($op) != null' <<<"$rule" >/dev/null; then
-      continue
-    fi
-
-    local patterns pattern
-    patterns="$(jq -r '.patterns[]' <<<"$rule")"
-    while IFS= read -r pattern; do
-      if match_file_path "$normalized_path" "$pattern"; then
-        local rule_id message
-        rule_id="$(jq -r '.id' <<<"$rule")"
-        message="$(jq -r '.message' <<<"$rule")"
-        json_output_result "deny" "$rule_id" "$message"
-        return 0
-      fi
-    done <<<"$patterns"
-  done
-
-  json_output_result "allow" "null" ""
+  if rule_id="$(denied_file_rule_id "$normalized_path" "$operation" "$rules_file")"; then
+    local message
+    message="$(jq -r --arg id "$rule_id" '.rules[] | select(.id == $id) | .message' "$rules_file")"
+    json_output_result "deny" "$rule_id" "$message"
+  else
+    json_output_result "allow" "null" ""
+  fi
 }
 
 guardrail_evaluate_commands() {

@@ -38,30 +38,17 @@ if [[ ! -f "$deny_files" ]]; then
   exit 0
 fi
 
-rule_count="$(jq '.rules | length' "$deny_files")"
-for (( i = 0; i < rule_count; i++ )); do
-  rule="$(jq -c ".rules[$i]" "$deny_files")"
-
-  if ! jq -e '.operations | index("write") != null' <<<"$rule" >/dev/null; then
-    continue
-  fi
-
-  patterns="$(jq -r '.patterns[]' <<<"$rule")"
-  while IFS= read -r pattern; do
-    if match_file_path "$normalized_path" "$pattern"; then
-      msg="$(jq -r '.message' <<<"$rule")"
-      jq -n \
-        --arg m "⚠️ 機密ファイルが編集されました: ${normalized_path}. ${msg}" \
-        --arg f "$normalized_path" \
-        --arg rid "$(jq -r '.id' <<<"$rule")" \
-        '{
-          user_message: $m,
-          agent_message: $m,
-          metadata: { file_path: $f, rule_id: $rid, event: "afterFileEdit" }
-        }'
-      exit 0
-    fi
-  done <<<"$patterns"
-done
+if rid="$(denied_file_rule_id "$normalized_path" "write" "$deny_files")"; then
+  msg="$(jq -r --arg id "$rid" '.rules[] | select(.id == $id) | .message' "$deny_files")"
+  jq -n \
+    --arg m "⚠️ 機密ファイルが編集されました: ${normalized_path}. ${msg}" \
+    --arg f "$normalized_path" \
+    --arg rid "$rid" \
+    '{
+      user_message: $m,
+      agent_message: $m,
+      metadata: { file_path: $f, rule_id: $rid, event: "afterFileEdit" }
+    }'
+fi
 
 exit 0

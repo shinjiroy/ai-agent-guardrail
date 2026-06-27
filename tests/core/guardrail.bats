@@ -100,6 +100,59 @@ load '../test_helper.bash'
   assert_decision allow
 }
 
+@test "cat .env via shell is denied" {
+  run_guardrail "$(make_request exec "" "cat .env" "/home/testuser/project" "/home/testuser")"
+  assert_success
+  assert_decision deny
+  assert_rule_id read-denied-file-via-command
+}
+
+@test "grep into .env via shell is denied" {
+  run_guardrail "$(make_request exec "" "grep SECRET .env" "/home/testuser/project" "/home/testuser")"
+  assert_success
+  assert_decision deny
+  assert_rule_id read-denied-file-via-command
+}
+
+@test "input redirection from .env is denied" {
+  run_guardrail "$(make_request exec "" "cat < .env" "/home/testuser/project" "/home/testuser")"
+  assert_success
+  assert_decision deny
+  assert_rule_id read-denied-file-via-command
+}
+
+@test "source .env is denied" {
+  run_guardrail "$(make_request exec "" "source .env" "/home/testuser/project" "/home/testuser")"
+  assert_success
+  assert_decision deny
+  assert_rule_id read-denied-file-via-command
+}
+
+@test "cat ssh key via shell is denied" {
+  run_guardrail "$(make_request exec "" "cat /home/testuser/.ssh/id_rsa" "/home/testuser" "/home/testuser")"
+  assert_success
+  assert_decision deny
+  assert_rule_id read-denied-file-via-command
+}
+
+@test "cat README.md via shell is allowed" {
+  run_guardrail "$(make_request exec "" "cat README.md" "/home/testuser/project" "/home/testuser")"
+  assert_success
+  assert_decision allow
+}
+
+@test "cat .env.example via shell is allowed (template)" {
+  run_guardrail "$(make_request exec "" "cat .env.example" "/home/testuser/project" "/home/testuser")"
+  assert_success
+  assert_decision allow
+}
+
+@test "cat read-allowed but write-protected rules file is allowed" {
+  run_guardrail "$(make_request exec "" "cat rules/deny-files.json" "/home/testuser/ai-agent-guardrail" "/home/testuser")"
+  assert_success
+  assert_decision allow
+}
+
 @test "rm * outside HOME is denied" {
   run_guardrail "$(make_request exec "" "rm *" "/tmp" "/home/testuser")"
   assert_success

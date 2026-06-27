@@ -58,6 +58,48 @@ match_file_path() {
   return 1
 }
 
+# ルール1件が、正規化済みパス・操作に適用されるか（パターンに一致するか）判定する
+file_rule_applies() {
+  local rule_json="$1"
+  local normalized_path="$2"
+  local operation="$3"
+
+  if ! jq -e --arg op "$operation" '.operations | index($op) != null' <<<"$rule_json" >/dev/null; then
+    return 1
+  fi
+
+  local pattern patterns
+  patterns="$(jq -r '.patterns[]' <<<"$rule_json")"
+  while IFS= read -r pattern; do
+    [[ -z "$pattern" ]] && continue
+    if match_file_path "$normalized_path" "$pattern"; then
+      return 0
+    fi
+  done <<<"$patterns"
+
+  return 1
+}
+
+# 正規化済みパスが deny-files ルールで禁止されているか判定し、
+# 禁止なら該当ルールIDを標準出力へ出して 0 を返す。非該当なら 1 を返す。
+denied_file_rule_id() {
+  local normalized_path="$1"
+  local operation="$2"
+  local rules_file="$3"
+
+  local rule_count i rule
+  rule_count="$(jq '.rules | length' "$rules_file")"
+  for (( i = 0; i < rule_count; i++ )); do
+    rule="$(jq -c ".rules[$i]" "$rules_file")"
+    if file_rule_applies "$rule" "$normalized_path" "$operation"; then
+      jq -r '.id' <<<"$rule"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 normalize_path() {
   local path="$1"
   local cwd="${2:-}"

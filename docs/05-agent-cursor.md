@@ -122,7 +122,8 @@ fi
 
 | 要件 | Claude Code | Cursor |
 | --- | --- | --- |
-| 機密ファイルの read 禁止 | ✅ PreToolUse(Read) | ✅ beforeReadFile |
+| 機密ファイルの read 禁止（ネイティブ Read） | ✅ PreToolUse(Read) | ✅ beforeReadFile |
+| 機密ファイルの read 禁止（シェル経由 cat/grep 等） | ✅ PreToolUse(Bash) | ✅ beforeShellExecution |
 | 機密ファイルの write 禁止（ネイティブ編集） | ✅ PreToolUse(Write/Edit) | ⚠️ 事前不可・afterFileEdit で事後検知 |
 | 機密ファイルの write 禁止（シェル経由） | ✅ PreToolUse(Bash) | ✅ beforeShellExecution |
 | curl パイプ実行禁止 | ✅ PreToolUse(Bash) | ✅ beforeShellExecution |
