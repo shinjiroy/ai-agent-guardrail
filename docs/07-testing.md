@@ -88,6 +88,8 @@ docker compose run --rm test
 docker compose run --rm test bats tests/core/guardrail.bats
 ```
 
+`docker compose` の `test` サービスは `bats --recursive tests/` を実行する。
+
 `docker/Dockerfile` には `bash`, `jq`, `bats`（必要に応じ `bats-assert` / `bats-support`）を含める。
 CI でも同じ Docker イメージでテストを回す想定。
 

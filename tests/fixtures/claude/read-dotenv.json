@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Read",
+  "cwd": "/home/user/project",
+  "tool_input": {
+    "file_path": "/home/user/project/.env"
+  }
+}

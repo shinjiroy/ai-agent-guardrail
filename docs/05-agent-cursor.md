@@ -116,7 +116,7 @@ fi
 ```
 
 - `failClosed` を `true` にすると、フック失敗時に操作をブロックする（fail-closed）。組織のポリシーに合わせて選択する。
-- `install.sh`（実装予定）で既存 `hooks.json` へマージできるようにする。
+- `install.sh` で既存 `hooks.json` へマージできる。
 
 ## Claude Code との対応関係まとめ
 

@@ -89,8 +89,8 @@
 
 ## 完了の定義（Definition of Done）
 
-- [ ] `rules/*.json` の全ルールが core で評価され、期待通り allow/deny される
-- [ ] Claude Code / Cursor 双方で、初期要件3項目（機密ファイル・curl パイプ・rm）がブロックされる
-- [ ] 全テストが Docker 上で green
-- [ ] 新ルール追加が「JSON 追記＋テスト追加」だけで完結することを、実例（追加例）で確認
-- [ ] README にセットアップ・ローカル確認手順が記載されている
+- [x] `rules/*.json` の全ルールが core で評価され、期待通り allow/deny される
+- [x] Claude Code / Cursor 双方で、初期要件3項目（機密ファイル・curl パイプ・rm）がブロックされる
+- [x] 全テストが Docker 上で green（`docker compose run --rm test`）
+- [x] 新ルール追加が「JSON 追記＋テスト追加」だけで完結する設計
+- [x] README にセットアップ・ローカル確認手順が記載されている
