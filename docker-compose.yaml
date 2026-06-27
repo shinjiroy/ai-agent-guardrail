@@ -1,0 +1,20 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: ["bats", "--recursive", "tests/"]
+
+  shell:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    entrypoint: ["bash"]
+    stdin_open: true
+    tty: true

@@ -3,42 +3,81 @@
 **すべてのスクリプトにはテストコードをセットで作成する**（プロジェクト共通ルール）。
 Bash スクリプトのテストには `bats`（Bash Automated Testing System）を用い、Docker 上で実行する。
 
-## テストの層
+## テストの構成方針
 
-| 層 | 対象 | 目的 |
-| --- | --- | --- |
-| ユニット | `core/lib/*`（glob 変換、regex 評価、builtin） | 判定部品の正しさ |
-| 統合（エンジン） | `core/guardrail.sh` | 標準リクエスト→標準結果の判定全体 |
-| 統合（アダプタ） | `adapters/**/*.sh` | エージェント入出力フォーマットの変換 |
-| 回帰 | `rules/*.json` の各ルール | 各ルールが「該当する/しない」両方で期待通り動く |
+テストは **「エンジン/ロジック層」** と **「ルール（データ）層」** を分離する。
+ルールは `rules/*.json` への追記で増えていくため、ルール1件ごとに bats を手書きするのは設計思想に反する。
+ルール層は「全ルールを自動で走査する検証」と「データ駆動の挙動ケース」で扱い、bash を書かずに拡張できるようにする。
+
+| 層 | 対象 | テスト | 拡張方法 |
+| --- | --- | --- | --- |
+| ロジック（ユニット） | `core/lib/*`（glob 変換・regex 評価・builtin・セグメント分割） | `tests/core/match_file.bats`, `tests/core/builtins.bats` | bats を追記 |
+| ロジック（エンジン） | `core/guardrail.sh` の入力検証・異常系 | `tests/core/engine.bats` | bats を追記 |
+| ロジック（アダプタ） | `adapters/**/*.sh` の入出力フォーマット変換 | `tests/adapters/**/*.bats` | bats を追記 |
+| ルール整合性 | `rules/*.json` 全ルールのデータ妥当性 | `tests/rules/validation.bats` | **追記不要**（全ルールを自動走査） |
+| ルール挙動 | 各ルールの該当/非該当の期待結果 | `tests/behavior/behavior.bats` + `cases.jsonl` | **`cases.jsonl` に1行追加** |
+
+### ルール整合性テスト（`tests/rules/validation.bats`）
+
+全ルールを走査し、データとしての正しさを検証する。ルールを追加すると自動的に検査対象になる。
+
+- `id` の一意性（全ファイル横断）、必須フィールド（`id`/`description`/`action="deny"`/`message`）
+- deny-files: `patterns` 非空、`operations` が `read`/`write` の部分集合
+- deny-commands: `match.type` が `regex`/`builtin`、必須サブフィールドの存在
+- 各 regex が `grep -E` でコンパイル可能であること
+- 各 builtin の `evaluator` が `builtin_dispatch` に登録済みであること
+
+### ルール挙動テスト（`tests/behavior/`）
+
+`cases.jsonl` に1行1ケース（`{desc, req, decision, rule_id?}`）を列挙し、`behavior.bats` が反復実行する。
+**カバレッジを増やすときは JSONL に行を追加するだけ**でよい。`rule_id` を省略すると `decision` のみ検証する。
+
+```jsonl
+{"desc":"read .env -> dotenv","req":{"operation":"read","path":"/home/testuser/project/.env"},"decision":"deny","rule_id":"dotenv"}
+{"desc":"read README.md -> allow","req":{"operation":"read","path":"/home/testuser/project/README.md"},"decision":"allow"}
+```
 
 ## ディレクトリ
 
-```
+```text
 tests/
 ├── core/
-│   ├── guardrail.bats          # エンジン統合テスト
-│   ├── match_file.bats         # glob マッチ
-│   └── builtins.bats           # rm_wildcard_outside_home 等
+│   ├── engine.bats             # エンジンの入力検証・異常系（ロジック）
+│   ├── match_file.bats         # glob マッチ（ロジック）
+│   └── builtins.bats           # builtin 判定（ロジック）
 ├── adapters/
 │   ├── claude/pretooluse.bats
-│   └── cursor/before-shell.bats, before-read-file.bats
-└── fixtures/
-    ├── claude/*.json           # Claude の Hook 入力サンプル
-    └── cursor/*.json           # Cursor の Hook 入力サンプル
+│   └── cursor/{before-shell,before-read-file,after-file-edit}.bats
+├── rules/
+│   └── validation.bats         # 全ルールのデータ妥当性（自動走査）
+├── behavior/
+│   ├── behavior.bats           # データ駆動ランナー
+│   └── cases.jsonl             # 挙動ケース（1行1ケース）
+├── fixtures/                   # 各エージェントの Hook 入力サンプル
+│   ├── claude/*.json
+│   └── cursor/*.json
+├── install.bats
+└── test_helper.bash
 ```
 
 ## 必須テストケース（要件カバレッジ）
 
+ここで挙げる「最低限カバーすべきケース」は `tests/behavior/cases.jsonl` に実装する。
 各ケースは「deny されるべき入力」と「allow されるべき類似入力」をペアで用意し、誤検知/見逃しの両方向を検証する。
 
 ### 機密ファイル
 
-- `read` `.env` / `path/to/.env.production` / `config/app.env` → **deny**
-- `read` `.env.example`（許可したい場合の境界） → ルール意図に応じて検証（既定では `*.env` に一致するため deny。
-  許可したいなら除外ルールの設計が必要 → [08](08-additional-guardrails.md) の検討事項）
+- `read` `.env`（ファイル名が `.env` と完全一致） → **deny**
+- `read` `.env.example` / `.env.sample` → **allow**（Git 管理対象のテンプレートのため対象外）
 - `write` `secrets.json` → **deny**
 - `read` `README.md` / `src/index.ts` → **allow**
+
+#### シェルコマンド経由のファイル読み取り（`reads_denied_file`）
+
+- `exec` `cat .env` / `grep SECRET .env` / `cat < .env` / `source .env` → **deny**
+- `exec` `cat /home/user/.ssh/id_rsa` → **deny**
+- `exec` `cat README.md` / `cat .env.example` → **allow**
+- `exec` `cat rules/deny-files.json`（書き込みのみ禁止のファイル） → **allow**
 
 ### curl パイプ実行
 
@@ -87,6 +126,8 @@ docker compose run --rm test
 # 単一ファイル
 docker compose run --rm test bats tests/core/guardrail.bats
 ```
+
+`docker compose` の `test` サービスは `bats --recursive tests/` を実行する。
 
 `docker/Dockerfile` には `bash`, `jq`, `bats`（必要に応じ `bats-assert` / `bats-support`）を含める。
 CI でも同じ Docker イメージでテストを回す想定。

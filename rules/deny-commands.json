@@ -25,6 +25,17 @@
       "message": "リモートから取得した内容をプロセス置換で直接実行することは禁止されています。"
     },
     {
+      "id": "read-denied-file-via-command",
+      "description": "cat/grep/less/head/tail 等のコマンド、入力リダイレクト（< file）、source/. 経由で deny-files.json の読み取り禁止ファイルへアクセスすることを禁止する。検査対象コマンドは core/lib/builtins.sh の GUARDRAIL_READER_COMMANDS で管理する。",
+      "category": "sensitive-file-access",
+      "match": {
+        "type": "builtin",
+        "evaluator": "reads_denied_file"
+      },
+      "action": "deny",
+      "message": "機密ファイルへのコマンド経由のアクセスは禁止されています。Read ツールだけでなく cat/grep 等やリダイレクト・source も対象です。"
+    },
+    {
       "id": "rm-wildcard-outside-home",
       "description": "ユーザーディレクトリ($HOME)以下以外でのワイルドカード付き rm を禁止",
       "category": "destructive",

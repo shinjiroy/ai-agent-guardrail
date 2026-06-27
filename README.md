@@ -38,41 +38,100 @@
 エージェントのHook出力(JSON / exit code)
 ```
 
-## ドキュメント
+## クイックスタート
 
-このリポジトリの現状の成果物は **設計ドキュメント一式** である。実装は本ドキュメントに従って Cursor が行う。
+### 1. Hook のインストール
 
-| ドキュメント | 内容 |
-| --- | --- |
-| [docs/00-conventions.md](docs/00-conventions.md) | リポジトリ規約（正本）。各エージェントのルールファイルはこれを参照する |
-| [docs/01-overview.md](docs/01-overview.md) | 目的・スコープ・対応エージェント・用語 |
-| [docs/02-architecture.md](docs/02-architecture.md) | 共通エンジン＋アダプタ設計、ディレクトリ構成、データフロー |
-| [docs/03-rules-spec.md](docs/03-rules-spec.md) | ルールJSONの仕様・追加方法 |
-| [docs/04-agent-claude-code.md](docs/04-agent-claude-code.md) | Claude Code 連携の詳細 |
-| [docs/05-agent-cursor.md](docs/05-agent-cursor.md) | Cursor 連携の詳細と制約 |
-| [docs/06-implementation-guide.md](docs/06-implementation-guide.md) | Cursor 向け実装指示書（タスク分解） |
-| [docs/07-testing.md](docs/07-testing.md) | テスト方針（必須） |
-| [docs/08-additional-guardrails.md](docs/08-additional-guardrails.md) | 追加で検討すべきガードレール |
+```bash
+# Claude Code（ユーザー全体）
+./install.sh claude --scope user
 
-## ディレクトリ構成（実装後の目標形）
+# Cursor（プロジェクト限定）
+./install.sh cursor --scope project
+
+# 機密性を最優先する場合（Cursor の fail-closed）
+./install.sh cursor --scope user --fail-closed
+```
+
+### 2. テスト実行（Docker）
+
+```bash
+# テスト一式
+docker compose run --rm test
+
+# 単一ファイル
+docker compose run --rm test bats tests/core/guardrail.bats
+
+# 対話シェル（デバッグ用）
+docker compose run --rm shell
+```
+
+### 3. 手動でエンジンを試す
+
+```bash
+echo '{"operation":"read","path":"/home/user/.env","cwd":"/home/user"}' \
+  | ./core/guardrail.sh
+```
+
+## ディレクトリ構成
 
 ```text
 ai-agent-guardrail/
 ├── README.md
-├── docs/                      # 設計ドキュメント（本リポジトリの現成果物）
-├── rules/                     # 禁止ルール定義（JSONで一元管理）
+├── install.sh                 # Hook 登録補助
+├── docker-compose.yaml          # ローカルテスト・確認用
+├── docs/                      # 設計ドキュメント
+├── rules/                     # 禁止ルール定義（JSON）
 │   ├── deny-files.json
 │   └── deny-commands.json
-├── core/                      # エージェント非依存の共通判定エンジン（Bash）
+├── core/                      # 共通判定エンジン
 │   ├── guardrail.sh
 │   └── lib/
-├── adapters/                  # 各エージェント用アダプタ
-│   ├── claude/
+├── adapters/                  # エージェント用アダプタ
+│   ├── claude/pretooluse.sh
 │   └── cursor/
-├── tests/                     # テストコード（bats）
-├── docker/                    # 実行・テスト環境（Docker）
-├── docker-compose.yaml        # ローカル動作確認用
-└── install.sh                 # 各エージェントへのHook登録補助
+│       ├── before-shell.sh
+│       ├── before-read-file.sh
+│       └── after-file-edit.sh
+├── tests/                     # bats テスト
+└── docker/                    # テスト用 Docker イメージ
 ```
 
-> 注: `core/`, `adapters/`, `tests/`, `install.sh` は未実装。`rules/` と `docs/` が現時点の成果物。
+## 対応エージェント
+
+| エージェント | Hook | アダプタ |
+| --- | --- | --- |
+| Claude Code | `PreToolUse` | `adapters/claude/pretooluse.sh` |
+| Cursor | `beforeShellExecution` | `adapters/cursor/before-shell.sh` |
+| Cursor | `beforeReadFile` | `adapters/cursor/before-read-file.sh` |
+| Cursor | `afterFileEdit`（事後検知） | `adapters/cursor/after-file-edit.sh` |
+
+Cursor ではファイル編集の事前ブロックができない制約がある。詳細は [docs/05-agent-cursor.md](docs/05-agent-cursor.md) を参照。
+
+## ルールの追加
+
+新しい禁止対象は `rules/deny-files.json` または `rules/deny-commands.json` に追記する。
+正規表現で表現できない判定のみ `core/lib/builtins.sh` に評価関数を追加する。
+手順とスキーマは [docs/03-rules-spec.md](docs/03-rules-spec.md) を参照。
+
+## ドキュメント
+
+| ドキュメント | 内容 |
+| --- | --- |
+| [docs/00-conventions.md](docs/00-conventions.md) | リポジトリ規約（正本） |
+| [docs/01-overview.md](docs/01-overview.md) | 目的・スコープ・対応エージェント |
+| [docs/02-architecture.md](docs/02-architecture.md) | アーキテクチャ・データフロー |
+| [docs/03-rules-spec.md](docs/03-rules-spec.md) | ルール JSON 仕様 |
+| [docs/04-agent-claude-code.md](docs/04-agent-claude-code.md) | Claude Code 連携 |
+| [docs/05-agent-cursor.md](docs/05-agent-cursor.md) | Cursor 連携と制約 |
+| [docs/06-implementation-guide.md](docs/06-implementation-guide.md) | 実装指示書 |
+| [docs/07-testing.md](docs/07-testing.md) | テスト方針 |
+| [docs/08-additional-guardrails.md](docs/08-additional-guardrails.md) | 追加ガードレール候補 |
+
+## 環境変数
+
+| 変数 | 用途 |
+| --- | --- |
+| `GUARDRAIL_HOME` | リポジトリの絶対パス（アダプタが core を解決する） |
+| `GUARDRAIL_RULES_DIR` | ルール JSON のディレクトリ（テスト・カスタム配布用） |
+| `GUARDRAIL_FAIL_CLOSED` | Cursor アダプタの fail-closed 有効化（`true`） |
