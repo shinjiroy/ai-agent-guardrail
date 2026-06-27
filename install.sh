@@ -91,7 +91,7 @@ install_claude() {
 
   if [[ -f "$settings_file" ]]; then
     jq --argjson entry "$hook_entry" \
-      '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry] | unique_by(.hooks[0].command))' \
+      '.hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select(.hooks[0].command != $entry.hooks[0].command))) + [$entry])' \
       "$settings_file" > "${settings_file}.tmp"
     mv "${settings_file}.tmp" "$settings_file"
   else
@@ -131,9 +131,9 @@ install_cursor() {
       --argjson shell "$shell_hook" \
       --argjson read "$read_hook" \
       --argjson after "$after_hook" \
-      '.hooks.beforeShellExecution = ((.hooks.beforeShellExecution // []) + [$shell] | unique_by(.command))
-       | .hooks.beforeReadFile = ((.hooks.beforeReadFile // []) + [$read] | unique_by(.command))
-       | .hooks.afterFileEdit = ((.hooks.afterFileEdit // []) + [$after] | unique_by(.command))' \
+      '.hooks.beforeShellExecution = (((.hooks.beforeShellExecution // []) | map(select(.command != $shell.command))) + [$shell])
+       | .hooks.beforeReadFile = (((.hooks.beforeReadFile // []) | map(select(.command != $read.command))) + [$read])
+       | .hooks.afterFileEdit = (((.hooks.afterFileEdit // []) | map(select(.command != $after.command))) + [$after])' \
       "$hooks_file" > "${hooks_file}.tmp"
     mv "${hooks_file}.tmp" "$hooks_file"
   else
