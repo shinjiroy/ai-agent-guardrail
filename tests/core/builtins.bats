@@ -45,3 +45,18 @@ setup() {
   run builtin_rm_wildcard_outside_home "rm *" "/tmp" ""
   [ "$status" -eq 1 ]
 }
+
+@test "rm_wildcard_outside_home: rm inside command substitution is detected" {
+  run builtin_rm_wildcard_outside_home 'echo $(rm -rf /opt/*)' "/home/testuser" "/home/testuser"
+  [ "$status" -eq 0 ]
+}
+
+@test "rm_wildcard_outside_home: rm inside backticks is detected" {
+  run builtin_rm_wildcard_outside_home 'echo `rm -rf /opt/*`' "/home/testuser" "/home/testuser"
+  [ "$status" -eq 0 ]
+}
+
+@test "rm_wildcard_outside_home: rm inside subshell parens is detected" {
+  run builtin_rm_wildcard_outside_home '(rm -rf /var/log/*)' "/home/testuser" "/home/testuser"
+  [ "$status" -eq 0 ]
+}

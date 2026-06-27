@@ -4,8 +4,16 @@
   "rules": [
     {
       "id": "dotenv",
-      "description": ".env 系の環境変数ファイル（機密情報を含みうる）",
-      "patterns": ["**/.env", "**/.env.*", "**/*.env"],
+      "description": "環境変数ファイル .env と、秘密情報を含む環境別の派生（.env.local, .env.production など）。Git 管理対象のテンプレート（.env.example, .env.sample, .env.template, .env.dist）は対象に含めず、秘密を含むファイルだけを個別に登録する。新しい派生を禁止したい場合は patterns に追記する。",
+      "patterns": [
+        "**/.env",
+        "**/.env.local",
+        "**/.env.*.local",
+        "**/.env.development",
+        "**/.env.production",
+        "**/.env.staging",
+        "**/.env.test"
+      ],
       "operations": ["read", "write"],
       "action": "deny",
       "message": ".env など機密情報を含みうるファイルへのアクセスは禁止されています。値が必要な場合はユーザーに確認してください。"

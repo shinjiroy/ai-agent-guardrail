@@ -7,6 +7,13 @@ load '../test_helper.bash'
   assert_rule_id dotenv
 }
 
+@test "read .env.local is denied" {
+  run_guardrail "$(make_request read "/home/testuser/project/.env.local" "" "/home/testuser/project")"
+  assert_success
+  assert_decision deny
+  assert_rule_id dotenv
+}
+
 @test "read .env.production is denied" {
   run_guardrail "$(make_request read "/home/testuser/project/.env.production" "" "/home/testuser/project")"
   assert_success
@@ -14,11 +21,23 @@ load '../test_helper.bash'
   assert_rule_id dotenv
 }
 
-@test "read config/app.env is denied" {
-  run_guardrail "$(make_request read "/home/testuser/config/app.env" "" "/home/testuser")"
+@test "read .env.production.local is denied" {
+  run_guardrail "$(make_request read "/home/testuser/project/.env.production.local" "" "/home/testuser/project")"
   assert_success
   assert_decision deny
   assert_rule_id dotenv
+}
+
+@test "read .env.example is allowed (git-managed template)" {
+  run_guardrail "$(make_request read "/home/testuser/project/.env.example" "" "/home/testuser/project")"
+  assert_success
+  assert_decision allow
+}
+
+@test "read .env.sample is allowed (git-managed template)" {
+  run_guardrail "$(make_request read "/home/testuser/project/.env.sample" "" "/home/testuser/project")"
+  assert_success
+  assert_decision allow
 }
 
 @test "read secrets.json is denied" {
@@ -92,6 +111,20 @@ load '../test_helper.bash'
   run_guardrail "$(make_request exec "" "rm *" "/home/testuser/work" "/home/testuser")"
   assert_success
   assert_decision allow
+}
+
+@test "rm inside command substitution outside HOME is denied" {
+  run_guardrail "$(make_request exec "" "echo \$(rm -rf /opt/*)" "/home/testuser" "/home/testuser")"
+  assert_success
+  assert_decision deny
+  assert_rule_id rm-wildcard-outside-home
+}
+
+@test "rm inside backticks outside HOME is denied" {
+  run_guardrail "$(make_request exec "" "echo \`rm -rf /opt/*\`" "/home/testuser" "/home/testuser")"
+  assert_success
+  assert_decision deny
+  assert_rule_id rm-wildcard-outside-home
 }
 
 @test "rm -rf / is denied" {

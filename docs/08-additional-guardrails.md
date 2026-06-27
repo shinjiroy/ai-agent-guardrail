@@ -34,14 +34,17 @@
 
 ### 除外（allow-list）の仕組み
 
-現状のルールは deny のみ。`.env.example` のように「パターンには一致するが許可したい」ケースに備え、
+現状のルールは deny のみで、除外は「パターンを十分に限定する」ことで対応している
+（例: `dotenv` ルールは `.env` 完全一致とし、Git 管理対象の `.env.example` 等を最初から対象に含めない）。
+
+パターンの限定だけでは表現しづらい「広く一致させたいが一部だけ許可したい」ケースが出てきた場合に備え、
 ルールへ `exceptions`（除外パターン）を追加できる拡張を検討する。
 
 ```jsonc
 {
-  "id": "dotenv",
-  "patterns": ["**/.env", "**/*.env"],
-  "exceptions": ["**/.env.example", "**/.env.sample"],   // ← 検討
+  "id": "some-broad-rule",
+  "patterns": ["**/config/**"],
+  "exceptions": ["**/config/public/**"],   // ← 検討（広く deny しつつ一部を許可）
   "operations": ["read", "write"]
 }
 ```

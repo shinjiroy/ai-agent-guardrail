@@ -34,9 +34,8 @@ tests/
 
 ### 機密ファイル
 
-- `read` `.env` / `path/to/.env.production` / `config/app.env` → **deny**
-- `read` `.env.example`（許可したい場合の境界） → ルール意図に応じて検証（既定では `*.env` に一致するため deny。
-  許可したいなら除外ルールの設計が必要 → [08](08-additional-guardrails.md) の検討事項）
+- `read` `.env`（ファイル名が `.env` と完全一致） → **deny**
+- `read` `.env.example` / `.env.sample` → **allow**（Git 管理対象のテンプレートのため対象外）
 - `write` `secrets.json` → **deny**
 - `read` `README.md` / `src/index.ts` → **allow**
 

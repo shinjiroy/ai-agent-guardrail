@@ -10,14 +10,12 @@ builtin_rm_wildcard_outside_home() {
     return 1
   fi
 
-  local segment segments=()
-  local IFS=$'\n'
-  segments=($(printf '%s' "$command" | sed -E 's/[;&|]+/\n/g'))
-  unset IFS
-
+  # コマンドをセグメントへ分割する。コマンド区切り（; & |）に加えて、
+  # コマンド置換 $(...) ・バックティック ・サブシェル (...) の境界も区切りに変換し、
+  # それらの内側に書かれた rm も検査対象に含める。
   local seg
-  for seg in "${segments[@]}"; do
-    seg="$(printf '%s' "$seg" | sed -E 's/^\s+//; s/\s+$//')"
+  while IFS= read -r seg || [[ -n "$seg" ]]; do
+    seg="$(printf '%s' "$seg" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
     if [[ -z "$seg" ]]; then
       continue
     fi
@@ -27,7 +25,7 @@ builtin_rm_wildcard_outside_home() {
         return 0
       fi
     fi
-  done
+  done < <(printf '%s' "$command" | sed -E 's/\$\(/\n/g; s/`/\n/g; s/[();&|]+/\n/g')
 
   return 1
 }
