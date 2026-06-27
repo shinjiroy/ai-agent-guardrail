@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "description": "実行を禁止するシェルコマンドのルール定義。match.type が regex の場合はコマンド文字列に対する正規表現で判定し、builtin の場合は core に実装された専用評価ロジックで判定する。",
+  "rules": [
+    {
+      "id": "curl-pipe-shell",
+      "description": "curl/wget で取得した内容をパイプでシェルに直接渡して実行することを禁止",
+      "category": "remote-code-execution",
+      "match": {
+        "type": "regex",
+        "pattern": "(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b"
+      },
+      "action": "deny",
+      "message": "リモートから取得した内容を直接シェルにパイプして実行することは禁止されています。一旦ファイルへ保存し、内容を確認してから実行してください。"
+    },
+    {
+      "id": "process-substitution-shell",
+      "description": "bash <(curl ...) 形式のプロセス置換による直接実行を禁止",
+      "category": "remote-code-execution",
+      "match": {
+        "type": "regex",
+        "pattern": "\\b(ba|z|da|k)?sh\\b[^\\n]*<\\(\\s*(curl|wget)\\b"
+      },
+      "action": "deny",
+      "message": "リモートから取得した内容をプロセス置換で直接実行することは禁止されています。"
+    },
+    {
+      "id": "rm-wildcard-outside-home",
+      "description": "ユーザーディレクトリ($HOME)以下以外でのワイルドカード付き rm を禁止",
+      "category": "destructive",
+      "match": {
+        "type": "builtin",
+        "evaluator": "rm_wildcard_outside_home"
+      },
+      "action": "deny",
+      "message": "$HOME 以下以外でのワイルドカードを含む rm は禁止されています。対象を明示するか、$HOME 以下で実行してください。"
+    },
+    {
+      "id": "rm-rf-root",
+      "description": "ルートや危険なシステムパスに対する rm -rf を禁止",
+      "category": "destructive",
+      "match": {
+        "type": "regex",
+        "pattern": "\\brm\\b[^\\n]*-[a-zA-Z]*r[a-zA-Z]*f?[^\\n]*\\s(/|/\\*|/etc|/usr|/bin|/var|/lib|/boot|/sys|/proc)(\\s|/|$)"
+      },
+      "action": "deny",
+      "message": "システム重要ディレクトリに対する破壊的な rm は禁止されています。"
+    }
+  ]
+}

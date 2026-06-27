@@ -1,0 +1,132 @@
+# 03. ルールJSON仕様
+
+禁止対象は `rules/` 配下のJSONで一元管理する。新しい禁止対象は原則 **このJSONへの追記のみ** で全エージェントへ反映される。
+
+ルールは2種類:
+
+- `rules/deny-files.json` … ファイルの read / write を禁止
+- `rules/deny-commands.json` … シェルコマンドの実行を禁止
+
+## deny-files.json
+
+### スキーマ
+
+```jsonc
+{
+  "version": 1,
+  "description": "ファイル枠の説明",
+  "rules": [
+    {
+      "id": "dotenv",                       // 一意なルールID（必須）
+      "description": "人間向け説明",         // 必須
+      "patterns": ["**/.env", "**/*.env"],  // glob パターン配列（必須）
+      "operations": ["read", "write"],      // 適用する操作（必須, read/write の部分集合）
+      "action": "deny",                     // 現状 "deny" のみ（必須）
+      "message": "ブロック時に表示する理由"  // 必須
+    }
+  ]
+}
+```
+
+### glob パターンの仕様
+
+- `**` … 任意の深さのディレクトリにマッチ
+- `*` … パス区切り（`/`）を除く任意の文字列にマッチ
+- 判定対象の `path` は絶対パスに正規化済みである前提
+- 大文字小文字は区別する
+- マッチは「パスのいずれかの部分」ではなく **パス全体** に対して行う。広く一致させたい場合は先頭に `**/` を付ける
+
+実装方針: glob を正規表現へ変換して照合する（`core/lib/match_file.sh`）。`**/` → `(.*/)?`、`*` → `[^/]*` への変換を基本とする。
+
+### 追加例
+
+新しく `*.keystore` を read/write 禁止にする場合、`rules` 配列へ以下を追記するだけでよい。
+
+```json
+{
+  "id": "keystore",
+  "description": "Java/Android のキーストア",
+  "patterns": ["**/*.keystore", "**/*.jks"],
+  "operations": ["read", "write"],
+  "action": "deny",
+  "message": "キーストアファイルへのアクセスは禁止されています。"
+}
+```
+
+## deny-commands.json
+
+### スキーマ
+
+```jsonc
+{
+  "version": 1,
+  "description": "コマンド枠の説明",
+  "rules": [
+    {
+      "id": "curl-pipe-shell",                 // 一意なルールID（必須）
+      "description": "人間向け説明",            // 必須
+      "category": "remote-code-execution",      // 任意の分類タグ
+      "match": {
+        "type": "regex",                        // "regex" または "builtin"（必須）
+        "pattern": "(curl|wget)\\b[^|]*\\|..."  // type=regex のとき必須
+        // "evaluator": "rm_wildcard_outside_home"  // type=builtin のとき必須
+      },
+      "action": "deny",                         // 現状 "deny" のみ（必須）
+      "message": "ブロック時に表示する理由"      // 必須
+    }
+  ]
+}
+```
+
+### match.type == "regex"
+
+- `command`（コマンド文字列全体）に対して正規表現で照合する
+- 照合エンジンは `grep -E`（POSIX 拡張正規表現）を基準とする。JSON内のバックスラッシュは二重にエスケープすること
+- 大文字小文字は区別する（必要なら `[Cc]url` のように明示）
+
+> 注意: 正規表現ベースの判定はバイパス（空白・改行・変数経由・別名コマンド等）に弱い。
+> ガードレールは「うっかり実行」を防ぐ多層防御の1層であり、悪意ある回避を完全に防ぐものではない、という前提を保つ。
+
+### match.type == "builtin"
+
+正規表現で表現しづらい判定（パスの所在判定など）は、`core/lib/builtins.sh` に評価関数を実装し、
+`evaluator` でその名前を指定する。関数は `command` / `cwd` / `home` を受け取り、真（該当=deny）か偽を返す。
+
+#### 定義済み builtin: `rm_wildcard_outside_home`
+
+「ユーザーディレクトリ（`$HOME`）以下以外での、ワイルドカードを含む `rm`」を deny する。
+
+判定ロジック（実装の指針）:
+
+1. `command` を解析し、`rm` 呼び出しが含まれるか判定する（`;`, `&&`, `|`, `$(...)` 内も対象に含めることが望ましい）。
+2. その `rm` の対象引数に **ワイルドカード**（`*`, `?`, `[`）が含まれるか判定する。
+3. 含まれる場合、対象パスの解決先が `$HOME` 配下かを判定する:
+   - 絶対パスならそのパスで判定
+   - 相対パスなら `cwd` を基準に解決して判定
+4. `$HOME` 配下に収まらない対象が1つでもあれば → **該当（deny）**。
+5. 判定に必要な情報が欠落して安全側に倒せない場合は、fail-safe ポリシー（[02](02-architecture.md)）に従う。
+
+> builtin を増やす場合: `builtins.sh` に関数を追加し、テスト（[07](07-testing.md)）を必ず用意する。
+
+### 追加例（regex）
+
+`chmod 777` を禁止する場合:
+
+```json
+{
+  "id": "chmod-777",
+  "description": "全権限付与の chmod を禁止",
+  "category": "permission",
+  "match": { "type": "regex", "pattern": "\\bchmod\\b[^\\n]*\\b777\\b" },
+  "action": "deny",
+  "message": "chmod 777 は禁止されています。必要最小限の権限を指定してください。"
+}
+```
+
+## ルール変更時のチェックリスト
+
+- [ ] `id` が既存と重複していないか
+- [ ] `message` がエージェント/ユーザーにとって行動可能（なぜ止められたか・どうすべきか）か
+- [ ] regex の場合、JSON エスケープ（`\\`）が正しいか
+- [ ] 対応するテストケース（該当する/しない両方）を `tests/` に追加したか
+- [ ] 想定外の誤検知（false positive）が広すぎないか

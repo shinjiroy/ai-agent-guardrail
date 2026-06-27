@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "description": "読み取り・書き込みを禁止する機密ファイルのルール定義。新しい禁止対象を追加する場合は rules 配列に要素を追記する。",
+  "rules": [
+    {
+      "id": "dotenv",
+      "description": ".env 系の環境変数ファイル（機密情報を含みうる）",
+      "patterns": ["**/.env", "**/.env.*", "**/*.env"],
+      "operations": ["read", "write"],
+      "action": "deny",
+      "message": ".env など機密情報を含みうるファイルへのアクセスは禁止されています。値が必要な場合はユーザーに確認してください。"
+    },
+    {
+      "id": "private-keys",
+      "description": "秘密鍵・証明書ファイル",
+      "patterns": ["**/*.pem", "**/*.key", "**/id_rsa", "**/id_dsa", "**/id_ecdsa", "**/id_ed25519", "**/*.p12", "**/*.pfx"],
+      "operations": ["read", "write"],
+      "action": "deny",
+      "message": "秘密鍵・証明書ファイルへのアクセスは禁止されています。"
+    },
+    {
+      "id": "cloud-credentials",
+      "description": "クラウド/CLI の資格情報ファイル",
+      "patterns": ["**/.aws/credentials", "**/.aws/config", "**/.config/gcloud/**", "**/.kube/config", "**/.npmrc", "**/.pypirc", "**/.netrc", "**/.docker/config.json"],
+      "operations": ["read", "write"],
+      "action": "deny",
+      "message": "クラウドや各種CLIの資格情報ファイルへのアクセスは禁止されています。"
+    },
+    {
+      "id": "ssh-dir",
+      "description": "SSH 関連ファイル",
+      "patterns": ["**/.ssh/**"],
+      "operations": ["read", "write"],
+      "action": "deny",
+      "message": "SSH 関連ファイルへのアクセスは禁止されています。"
+    },
+    {
+      "id": "secret-files",
+      "description": "汎用的な機密ファイル名",
+      "patterns": ["**/secrets.*", "**/*secret*.json", "**/*secret*.yaml", "**/*secret*.yml", "**/credentials.json", "**/service-account*.json"],
+      "operations": ["read", "write"],
+      "action": "deny",
+      "message": "機密情報を含みうるファイルへのアクセスは禁止されています。"
+    },
+    {
+      "id": "guardrail-self-protection",
+      "description": "ガードレール自身のルール/スクリプトの改変防止",
+      "patterns": ["**/rules/*.json", "**/core/**", "**/adapters/**"],
+      "operations": ["write"],
+      "action": "deny",
+      "message": "ガードレールのルール・スクリプトはエージェントによる自動編集を禁止しています。変更はレビューを経て手動で行ってください。"
+    }
+  ]
+}
