@@ -56,6 +56,17 @@
       },
       "action": "deny",
       "message": "システム重要ディレクトリに対する破壊的な rm は禁止されています。"
+    },
+    {
+      "id": "docker-cli-volume-mount",
+      "description": "docker / podman / docker compose の CLI 上でのボリュームマウント（-v / --volume / --mount）を禁止",
+      "category": "container-isolation",
+      "match": {
+        "type": "regex",
+        "pattern": "\\b(docker\\s+compose|docker-compose|docker|podman)\\b.*\\s(-v|--volume|--mount)\\b"
+      },
+      "action": "deny",
+      "message": "CLI 上での Docker/Podman ボリュームマウント（-v / --volume / --mount）は禁止されています。必要なマウントは docker-compose.yaml 等に定義してください。"
     }
   ]
 }

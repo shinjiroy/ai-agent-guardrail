@@ -23,6 +23,9 @@
    `curl`/`wget` で取得した内容をパイプ等でシェルに直接渡す実行を禁止する。
 3. **危険な `rm` の禁止**
    ユーザーディレクトリ（`$HOME`）以下以外での、ワイルドカードを含む `rm` を禁止する。
+4. **Docker/Podman の CLI ボリュームマウント禁止**
+   `docker run -v ...` 等、CLI 上での `-v` / `--volume` / `--mount` 指定を禁止する。
+   正当なマウントは `docker-compose.yaml` 等に定義する運用を想定する。
 
 追加で検討すべきガードレールは [08-additional-guardrails.md](08-additional-guardrails.md) に記載する。
 
