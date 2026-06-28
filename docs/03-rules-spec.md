@@ -139,6 +139,15 @@
   実運用では各シェルコマンドが個別の Hook 呼び出し（個別の `cwd`）になるため影響は限定的。
 - **変数・別名・エンコード経由の難読化**: `R=rm; $R -rf /*` や base64 デコード実行などは正規表現／静的解析では捕捉しない。
 
+#### 定義済み regex: `docker-cli-volume-mount`
+
+`docker` / `podman` / `docker compose` / `docker-compose` のコマンド文字列に、
+CLI 上の `-v` / `--volume` / `--mount`（直前に空白があるトークン）が含まれる場合 deny する。
+`docker-compose.yaml` に定義されたボリュームを使う `docker compose run --rm test` のような実行は対象外。
+
+> compose ファイルへの書き込みや、yaml 内マウント定義の改ざんは本ルールの対象外。
+> Hook は「その場で組み立てる ad-hoc マウント」の抑止を目的とする。
+
 ### 追加例（regex）
 
 `chmod 777` を禁止する場合:
