@@ -4,25 +4,36 @@
   "rules": [
     {
       "id": "curl-pipe-shell",
-      "description": "curl/wget で取得した内容をパイプでシェルに直接渡して実行することを禁止",
+      "description": "curl/wget で取得した内容をパイプでシェルやインタプリタに直接渡して実行することを禁止。中間パイプ（base64 -d 等）を挟んでも捕捉する。",
       "category": "remote-code-execution",
       "match": {
         "type": "regex",
-        "pattern": "(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b"
+        "pattern": "(curl|wget)\\b[^;&]*\\|[[:space:]]*(sudo[[:space:]]+)?((ba|z|da|k)?sh|fish|python[23]?|perl|ruby|node|php)\\b"
       },
       "action": "deny",
-      "message": "リモートから取得した内容を直接シェルにパイプして実行することは禁止されています。一旦ファイルへ保存し、内容を確認してから実行してください。"
+      "message": "リモートから取得した内容を直接シェル/インタプリタにパイプして実行することは禁止されています。一旦ファイルへ保存し、内容を確認してから実行してください。"
     },
     {
       "id": "process-substitution-shell",
-      "description": "bash <(curl ...) 形式のプロセス置換による直接実行を禁止",
+      "description": "bash <(curl ...) / source <(curl ...) 形式のプロセス置換による直接実行を禁止",
       "category": "remote-code-execution",
       "match": {
         "type": "regex",
-        "pattern": "\\b(ba|z|da|k)?sh\\b[^\\n]*<\\(\\s*(curl|wget)\\b"
+        "pattern": "(^|[[:space:]])((ba|z|da|k)?sh|fish|source|\\.|python[23]?|perl|ruby|node|php)[[:space:]][^\\n]*<\\([[:space:]]*(curl|wget)\\b"
       },
       "action": "deny",
       "message": "リモートから取得した内容をプロセス置換で直接実行することは禁止されています。"
+    },
+    {
+      "id": "command-substitution-remote-shell",
+      "description": "sh -c \"$(curl ...)\" / eval \"$(curl ...)\" 形式のコマンド置換による直接実行を禁止",
+      "category": "remote-code-execution",
+      "match": {
+        "type": "regex",
+        "pattern": "(eval|(ba|z|da|k)?sh|fish|python[23]?|perl|ruby|node|php)\\b[^\\n]*(\\$\\(|`)[[:space:]]*(curl|wget)\\b"
+      },
+      "action": "deny",
+      "message": "リモートから取得した内容をコマンド置換で直接実行することは禁止されています。一旦ファイルへ保存し、内容を確認してから実行してください。"
     },
     {
       "id": "read-denied-file-via-command",
@@ -34,6 +45,17 @@
       },
       "action": "deny",
       "message": "機密ファイルへのコマンド経由のアクセスは禁止されています。Read ツールだけでなく cat/grep 等やリダイレクト・source も対象です。"
+    },
+    {
+      "id": "write-denied-file-via-command",
+      "description": "リダイレクト（> / >>）・tee・cp/mv/install/ln の宛先・sed -i・dd of= 経由で deny-files.json の書き込み禁止ファイルへ書き込むことを禁止する。Cursor は write の事前ブロックができないため、シェル経由の書き込みをここで補完する。",
+      "category": "sensitive-file-access",
+      "match": {
+        "type": "builtin",
+        "evaluator": "writes_denied_file"
+      },
+      "action": "deny",
+      "message": "機密ファイルやガードレール設定へのコマンド経由の書き込みは禁止されています。リダイレクト・tee・cp/mv 等も対象です。"
     },
     {
       "id": "rm-wildcard-outside-home",
@@ -58,12 +80,89 @@
       "message": "システム重要ディレクトリに対する破壊的な rm は禁止されています。"
     },
     {
+      "id": "git-reset-hard",
+      "description": "git reset --hard による未コミット変更の破棄を禁止",
+      "category": "destructive",
+      "match": {
+        "type": "regex",
+        "pattern": "\\bgit\\b[^\\n]*\\breset\\b[^\\n]*--hard\\b"
+      },
+      "action": "deny",
+      "message": "git reset --hard は未コミットの変更を失わせるため禁止されています。必要な場合は変更を退避（stash/commit）してからユーザーが手動で実行してください。"
+    },
+    {
+      "id": "git-clean-force",
+      "description": "git clean -f 系による未追跡ファイルの破棄を禁止",
+      "category": "destructive",
+      "match": {
+        "type": "regex",
+        "pattern": "\\bgit\\b[^\\n]*\\bclean\\b[^\\n]*-[a-zA-Z]*f"
+      },
+      "action": "deny",
+      "message": "git clean -f 系は未追跡ファイルを削除するため禁止されています。対象を確認のうえユーザーが手動で実行してください。"
+    },
+    {
+      "id": "git-push-force-protected",
+      "description": "保護ブランチ（main/master）への force push を禁止",
+      "category": "destructive",
+      "match": {
+        "type": "builtin",
+        "evaluator": "git_push_force_protected"
+      },
+      "action": "deny",
+      "message": "保護ブランチ（main/master）への force push は禁止されています。履歴を書き換える操作はレビューのうえユーザーが手動で行ってください。"
+    },
+    {
+      "id": "dd-to-block-device",
+      "description": "ブロックデバイスへの dd 書き込みを禁止",
+      "category": "destructive",
+      "match": {
+        "type": "regex",
+        "pattern": "\\bdd\\b[^\\n]*\\bof=/dev/"
+      },
+      "action": "deny",
+      "message": "ブロックデバイスへの dd 書き込みは不可逆で致命的なため禁止されています。"
+    },
+    {
+      "id": "mkfs-fdisk",
+      "description": "ファイルシステム作成/パーティション操作を禁止",
+      "category": "destructive",
+      "match": {
+        "type": "regex",
+        "pattern": "\\b(mkfs(\\.[a-z0-9]+)?|fdisk|parted|sgdisk|wipefs)\\b[^\\n]*\\B/dev/"
+      },
+      "action": "deny",
+      "message": "ファイルシステム作成やパーティション操作は不可逆なため禁止されています。"
+    },
+    {
+      "id": "chmod-recursive-777",
+      "description": "再帰的な chmod 777 等の過剰な権限付与を禁止",
+      "category": "permission",
+      "match": {
+        "type": "regex",
+        "pattern": "\\bchmod\\b[^\\n]*\\s-[a-zA-Z]*R[a-zA-Z]*\\s[^\\n]*(777|a\\+rwx|o\\+w)\\b"
+      },
+      "action": "deny",
+      "message": "再帰的な全権限付与（chmod -R 777 等）は権限事故につながるため禁止されています。必要最小限の権限を指定してください。"
+    },
+    {
+      "id": "history-clear",
+      "description": "シェル履歴の消去（監査証跡の破壊）を禁止",
+      "category": "audit",
+      "match": {
+        "type": "regex",
+        "pattern": "\\bhistory\\b[[:space:]]+-c\\b"
+      },
+      "action": "deny",
+      "message": "シェル履歴の消去は監査証跡を失わせるため禁止されています。"
+    },
+    {
       "id": "docker-cli-volume-mount",
-      "description": "docker / podman / docker compose の CLI 上でのボリュームマウント（-v / --volume / --mount）を禁止",
+      "description": "docker / podman / docker compose の CLI 上でのボリュームマウント（-v / --volume / --mount）を禁止。パイプやコマンド区切りを跨いだ誤検知を避けるため同一セグメント内のみ判定する。",
       "category": "container-isolation",
       "match": {
         "type": "regex",
-        "pattern": "\\b(docker\\s+compose|docker-compose|docker|podman)\\b.*\\s(-v|--volume|--mount)\\b"
+        "pattern": "\\b(docker[[:space:]]+compose|docker-compose|docker|podman)\\b[^|;&]*[[:space:]](-v|--volume|--mount)\\b"
       },
       "action": "deny",
       "message": "CLI 上での Docker/Podman ボリュームマウント（-v / --volume / --mount）は禁止されています。必要なマウントは docker-compose.yaml 等に定義してください。"

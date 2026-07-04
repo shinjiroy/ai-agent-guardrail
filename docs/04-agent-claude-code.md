@@ -12,8 +12,10 @@
 | --- | --- | --- |
 | `Bash` | exec | `tool_input.command` を判定 |
 | `Read` | read | `tool_input.file_path` を判定 |
+| `Grep` | read | `tool_input.path` を判定。ファイル内容を出力しうるため read 扱い。`path` 省略時（カレント配下検索）は個別ファイル判定できないため素通し |
 | `Write` | write | `tool_input.file_path` を判定 |
 | `Edit` / `MultiEdit` | write | `tool_input.file_path` を判定 |
+| `NotebookEdit` | write | `tool_input.notebook_path` を判定 |
 
 ## Hook 入力（Claude → アダプタ, stdin）
 
@@ -66,8 +68,11 @@ case "$tool" in
     op="exec"; command="$(jq -r '.tool_input.command' <<<"$input")"; path="" ;;
   Read)
     op="read"; path="$(jq -r '.tool_input.file_path' <<<"$input")"; command="" ;;
-  Write|Edit|MultiEdit)
-    op="write"; path="$(jq -r '.tool_input.file_path' <<<"$input")"; command="" ;;
+  Grep)
+    op="read"; path="$(jq -r '.tool_input.path // empty' <<<"$input")"; command=""
+    [ -z "$path" ] && exit 0 ;;  # path 省略時は素通し
+  Write|Edit|MultiEdit|NotebookEdit)
+    op="write"; path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path' <<<"$input")"; command="" ;;
   *)
     exit 0 ;;  # 対象外ツールは何もしない（allow）
 esac
@@ -78,7 +83,8 @@ req="$(jq -n --arg agent claude --arg op "$op" --arg path "$path" \
             '{agent:$agent, operation:$op, path:$path, command:$command, cwd:$cwd}')"
 
 if ! result="$(printf '%s' "$req" | "$GUARDRAIL_HOME/core/guardrail.sh")"; then
-  # エンジン異常: fail-safe ポリシーに従う（既定 fail-open → allow）
+  # エンジン異常: fail-safe ポリシーに従う。
+  # 既定は fail-open（allow）。GUARDRAIL_FAIL_CLOSED=true のとき deny を返す。
   exit 0
 fi
 
@@ -102,7 +108,7 @@ exit 0
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Read|Write|Edit|MultiEdit",
+        "matcher": "Bash|Read|Grep|Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -118,6 +124,7 @@ exit 0
 
 - `matcher` は対象ツールを `|` で列挙。アダプタ側でも対象外ツールは素通しするため、二重に安全。
 - `install.sh` で、この設定スニペットを既存 `settings.json` へマージできる。
+- 環境変数 `GUARDRAIL_FAIL_CLOSED=true` を設定すると、エンジン異常時に allow せず deny する（fail-closed）。組織のポリシーに合わせて選択する。
 
 ## 動作確認
 

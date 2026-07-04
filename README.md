@@ -7,9 +7,10 @@
 
 ## 何を解決するか
 
-- 機密ファイル（`.env`、秘密鍵、クラウド資格情報など）の読み書きを防ぐ
-- `curl ... | bash` のようなリモートコード直接実行を防ぐ
-- ユーザーディレクトリ以下以外での、ワイルドカード付き `rm` を防ぐ
+- 機密ファイル（`.env`、秘密鍵、クラウド資格情報、Terraform state、シェル履歴など）の読み書きを防ぐ。ネイティブの Read/Write だけでなく、`cat`/`grep`/インタプリタ経由の読み取りや、リダイレクト・`tee`・`cp`/`mv` 経由の書き込みも捕捉する
+- `curl ... | bash` のようなリモートコード直接実行を防ぐ。中間パイプ（`| base64 -d | sh`）、インタプリタ（`| python3`）、コマンド置換（`sh -c "$(curl ...)"`）、プロセス置換（`source <(curl ...)`）も対象
+- 破壊的操作を防ぐ: ユーザーディレクトリ以下以外でのワイルドカード付き `rm`、`git reset --hard` / `git clean -f`、保護ブランチ（main/master）への force push、ブロックデバイスへの `dd`、`mkfs`/`fdisk`、`chmod -R 777`
+- ガードレール自身のルール・スクリプトおよびフック設定ファイル（`.claude/settings.json` 等）の改変を防ぐ
 - Docker/Podman の CLI 上でのボリュームマウント（`-v` / `--volume` / `--mount`）を防ぐ
 - 上記をエージェント横断で **同一のルール定義** から実現する
 
@@ -135,4 +136,4 @@ Cursor ではファイル編集の事前ブロックができない制約があ�
 | --- | --- |
 | `GUARDRAIL_HOME` | リポジトリの絶対パス（アダプタが core を解決する） |
 | `GUARDRAIL_RULES_DIR` | ルール JSON のディレクトリ（テスト・カスタム配布用） |
-| `GUARDRAIL_FAIL_CLOSED` | Cursor アダプタの fail-closed 有効化（`true`） |
+| `GUARDRAIL_FAIL_CLOSED` | アダプタ（Claude Code / Cursor）の fail-closed 有効化（`true`）。エンジン異常時に allow せず deny する |

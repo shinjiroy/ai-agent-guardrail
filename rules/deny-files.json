@@ -29,7 +29,7 @@
     {
       "id": "cloud-credentials",
       "description": "クラウド/CLI の資格情報ファイル",
-      "patterns": ["**/.aws/credentials", "**/.aws/config", "**/.config/gcloud/**", "**/.kube/config", "**/.npmrc", "**/.pypirc", "**/.netrc", "**/.docker/config.json"],
+      "patterns": ["**/.aws/credentials", "**/.aws/config", "**/.config/gcloud/**", "**/.kube/config", "**/.npmrc", "**/.pypirc", "**/.netrc", "**/.docker/config.json", "**/.config/gh/hosts.yml", "**/.git-credentials", "**/.pgpass", "**/.my.cnf"],
       "operations": ["read", "write"],
       "action": "deny",
       "message": "クラウドや各種CLIの資格情報ファイルへのアクセスは禁止されています。"
@@ -43,6 +43,22 @@
       "message": "SSH 関連ファイルへのアクセスは禁止されています。"
     },
     {
+      "id": "terraform-state",
+      "description": "Terraform state ファイル（平文で機密値を含みうる）",
+      "patterns": ["**/*.tfstate", "**/*.tfstate.backup", "**/*.tfvars"],
+      "operations": ["read", "write"],
+      "action": "deny",
+      "message": "Terraform state / tfvars は平文の機密値を含みうるためアクセスを禁止しています。"
+    },
+    {
+      "id": "shell-history",
+      "description": "シェル履歴ファイル（機密が残りうる／監査証跡）",
+      "patterns": ["**/.bash_history", "**/.zsh_history", "**/.sh_history", "**/.python_history"],
+      "operations": ["read", "write"],
+      "action": "deny",
+      "message": "シェル履歴ファイルへのアクセスは禁止されています。"
+    },
+    {
       "id": "secret-files",
       "description": "汎用的な機密ファイル名",
       "patterns": ["**/secrets.*", "**/*secret*.json", "**/*secret*.yaml", "**/*secret*.yml", "**/credentials.json", "**/service-account*.json"],
@@ -52,11 +68,11 @@
     },
     {
       "id": "guardrail-self-protection",
-      "description": "ガードレール自身のルール/スクリプトの改変防止",
-      "patterns": ["**/rules/*.json", "**/core/**", "**/adapters/**"],
+      "description": "ガードレール自身のルール/スクリプト、および各エージェントのフック登録ファイルの改変防止。これらを書き換えるとガードレール自体を無効化できるため write を禁止する。",
+      "patterns": ["**/rules/*.json", "**/core/**", "**/adapters/**", "**/.claude/settings.json", "**/.claude/settings.local.json", "**/.cursor/hooks.json"],
       "operations": ["write"],
       "action": "deny",
-      "message": "ガードレールのルール・スクリプトはエージェントによる自動編集を禁止しています。変更はレビューを経て手動で行ってください。"
+      "message": "ガードレールのルール・スクリプトおよびフック設定はエージェントによる自動編集を禁止しています。変更はレビューを経て手動で行ってください。"
     }
   ]
 }
