@@ -24,12 +24,13 @@ Claude Code 本体との差分:
 フックを素通りしてガードレール全体がバイパスされる**ため、Claude アダプタの改修時はこの互換入力の
 テスト（`tests/fixtures/claude/cursor-compat-shell-curl-pipe.json`）を必ず維持すること。
 
-## ⚠️ 重要な制約: 書き込みの事前ブロックができない
+## ⚠️ 制約: 独自フックだけでは書き込みの事前ブロックができない
 
-Cursor のファイル編集系フックは **`afterFileEdit`（編集後）** のみで、編集前にブロックする
-`beforeWriteFile` 相当のフックは提供されていない（本ドキュメント作成時点の公式仕様）。
+Cursor の独自フック（`hooks.json`）のファイル編集系イベントは **`afterFileEdit`（編集後）** のみで、
+編集前にブロックする `beforeWriteFile` 相当のフックは提供されていない。
 
-そのため `.env` 等への **エージェント直接編集（Edit/Write 相当）の事前ブロックは Cursor では不可**。
+ただし、後述の **Claude Code 互換フック（preToolUse）が有効な環境では、`Write`/`Edit` 相当の
+ネイティブ編集も実行前にブロックできる**（Cursor 3.9 で確認済み）。互換フックが効かない環境向けに、
 この差分を以下の多層で補う:
 
 1. **シェル経由の書き込みは `beforeShellExecution` で捕捉する**
@@ -41,8 +42,9 @@ Cursor のファイル編集系フックは **`afterFileEdit`（編集後）** �
 3. **Cursor 本体の機密ファイル保護設定との併用**
    Cursor 側の `.cursorignore` / ファイル保護機能と併用し、エージェントが対象ファイルを編集対象にしにくくする。
 
-> 結論: 「read と exec は Claude と同等にブロックできる」「write の事前ブロックは Cursor の制約上、
-> シェル経由のみ可能。ネイティブ編集は事後検知で補う」。この非対称性は本ドキュメントで明示し、運用で受容する。
+> 結論: 「read と exec は Claude と同等にブロックできる」「write の事前ブロックは、Claude Code 互換
+> フックが有効なら Claude と同等。独自フックのみの環境ではシェル経由に限られ、ネイティブ編集は
+> 事後検知で補う」。互換フックへの依存度は本ドキュメントで明示し、運用で受容する。
 
 ## Hook 入力（Cursor → アダプタ, stdin）
 
@@ -139,7 +141,7 @@ fi
 | --- | --- | --- |
 | 機密ファイルの read 禁止（ネイティブ Read） | ✅ PreToolUse(Read) | ✅ beforeReadFile |
 | 機密ファイルの read 禁止（シェル経由 cat/grep 等） | ✅ PreToolUse(Bash) | ✅ beforeShellExecution |
-| 機密ファイルの write 禁止（ネイティブ編集） | ✅ PreToolUse(Write/Edit) | ⚠️ 事前不可・afterFileEdit で事後検知 |
+| 機密ファイルの write 禁止（ネイティブ編集） | ✅ PreToolUse(Write/Edit) | ✅ Claude 互換 preToolUse で事前ブロック（互換フック無効時は afterFileEdit の事後検知のみ） |
 | 機密ファイルの write 禁止（シェル経由） | ✅ PreToolUse(Bash) | ✅ beforeShellExecution |
 | curl パイプ実行禁止 | ✅ PreToolUse(Bash) | ✅ beforeShellExecution |
 | ワイルドカード rm 禁止 | ✅ PreToolUse(Bash) | ✅ beforeShellExecution |

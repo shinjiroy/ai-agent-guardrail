@@ -120,7 +120,9 @@ ai-agent-guardrail/
 | Cursor | `beforeReadFile` | `adapters/cursor/before-read-file.sh` |
 | Cursor | `afterFileEdit`（事後検知） | `adapters/cursor/after-file-edit.sh` |
 
-Cursor ではファイル編集の事前ブロックができない制約がある。詳細は [docs/05-agent-cursor.md](docs/05-agent-cursor.md) を参照。
+Cursor は Claude Code 互換の `preToolUse` フック（`~/.claude/settings.json` の PreToolUse 登録）も呼び出すため、
+互換フックが有効な環境ではファイル編集の事前ブロックも効く。独自フック（`hooks.json`）のみの環境では
+編集は afterFileEdit の事後検知となる。詳細は [docs/05-agent-cursor.md](docs/05-agent-cursor.md) を参照。
 
 ## ルールの追加
 
