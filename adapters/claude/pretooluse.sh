@@ -14,6 +14,19 @@ resolve_guardrail_home() {
 GUARDRAIL_HOME="$(resolve_guardrail_home)"
 export GUARDRAIL_HOME
 
+FAIL_CLOSED="${GUARDRAIL_FAIL_CLOSED:-false}"
+
+emit_deny() {
+  jq -n --arg r "$1" \
+    '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: $r
+      }
+    }'
+}
+
 input="$(cat)"
 
 tool="$(jq -r '.tool_name // empty' <<<"$input")"
@@ -32,9 +45,15 @@ case "$tool" in
     op="read"
     path="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
     ;;
-  Write|Edit|MultiEdit)
+  Grep)
+    op="read"
+    path="$(jq -r '.tool_input.path // empty' <<<"$input")"
+    # path 省略時（カレント配下検索）は個別ファイル判定できないため素通し
+    [[ -z "$path" ]] && exit 0
+    ;;
+  Write|Edit|MultiEdit|NotebookEdit)
     op="write"
-    path="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
+    path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input")"
     ;;
   *)
     exit 0
@@ -50,21 +69,16 @@ req="$(jq -n \
   '{agent: $agent, operation: $op, path: $path, command: $command, cwd: $cwd}')"
 
 if ! result="$(printf '%s' "$req" | "${GUARDRAIL_HOME}/core/guardrail.sh" 2>/dev/null)"; then
+  if [[ "$FAIL_CLOSED" == "true" ]]; then
+    emit_deny "ガードレールの判定に失敗しました。操作はブロックされました。"
+  fi
   exit 0
 fi
 
 decision="$(jq -r '.decision' <<<"$result")"
 if [[ "$decision" == "deny" ]]; then
   reason="$(jq -r '.message' <<<"$result")"
-  jq -n \
-    --arg r "$reason" \
-    '{
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: $r
-      }
-    }'
+  emit_deny "$reason"
 fi
 
 exit 0

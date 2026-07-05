@@ -116,11 +116,13 @@
 判定ロジック（実装の指針）:
 
 1. `command` をセグメントへ分割する（`rm_wildcard_outside_home` と同様に区切り・サブシェルを展開）。
-2. 各セグメントについて、先頭の `VAR=val` 代入と `sudo` を除去し、コマンド名を取り出す。
-3. コマンド名が **読み取りコマンドの一覧**（`core/lib/builtins.sh` の `GUARDRAIL_READER_COMMANDS`）に含まれる場合、
-   そのオペランド（フラグ以外の引数）をファイルパス候補とする。
-4. 入力リダイレクト `< file` の対象、`source`/`.` の対象もパス候補に加える。
-5. 各候補を `cwd` 基準で正規化し、`deny-files.json` の `read` 対象ルールに一致すれば → **該当（deny）**。
+2. 各セグメントについて、先頭の `VAR=val` 代入・`sudo`・`env` を除去し、コマンド名を取り出す。
+3. コマンド名が **読み取りコマンドの一覧**（`core/lib/builtins.sh` の `GUARDRAIL_READER_COMMANDS`。`cat` 系に加え
+   `jq`・`diff`・`python`/`perl`/`ruby`/`node` 等のインタプリタを含む）に含まれる場合、
+   そのオペランド（フラグ以外の引数）をファイルパス候補とする。`cp`/`mv`/`install`/`rsync`/`scp` は末尾オペランド（宛先）を読み取り候補から除く。
+4. 入力リダイレクト `< file` の対象、`source`/`.` の対象もパス候補に加える。`xargs`・`timeout` 等のラッパは剥がして内側コマンドを、`find ... -exec <reader> ...` は内側の読み取りコマンドを再評価する。
+5. 候補にグロブ文字（`* ? [`）が含まれる場合は `cwd` 基準で実ファイルへ展開し、展開結果を照合する。
+6. 各候補を `cwd` 基準で正規化し、`deny-files.json` の `read` 対象ルールに一致すれば → **該当（deny）**。
 
 > 検査対象のコマンドを増やすには `GUARDRAIL_READER_COMMANDS` に追記する。
 > 読み取りコマンドの網羅は本質的に不完全（[既知の制約](#既知の制約)）であり、多層防御の一層という位置づけ。
@@ -128,6 +130,25 @@
 > 書き込み禁止だが読み取りは許可するファイルの `cat` はブロックされない。
 >
 > builtin を増やす場合: `builtins.sh` に関数を追加し、テスト（[07](07-testing.md)）を必ず用意する。
+
+#### 定義済み builtin: `writes_denied_file`
+
+出力リダイレクト（`> file` / `>> file`）、`tee`、`cp`/`mv`/`install`/`rsync`/`scp`/`ln` の宛先、
+`sed -i`、`dd of=`、`truncate` 経由で **`deny-files.json` の書き込み禁止ファイル**へ書き込もうとしていれば deny する。
+Cursor はネイティブ編集の事前ブロックができないため（[05](05-agent-cursor.md)）、シェル経由の書き込みをこの builtin で補完する。
+`guardrail-self-protection` ルールにフック設定ファイルを含めることで、`echo ... > .claude/settings.json` のような
+シェル経由のガードレール無効化もこの builtin で捕捉する。
+
+判定ロジック（実装の指針）:
+
+1. `command` をセグメントへ分割する。
+2. 各セグメントから書き込み先候補を集める（リダイレクト先、`tee` の全オペランド、`cp`/`mv` 等の末尾オペランド、`dd` の `of=`、`sed -i` のオペランド）。`2>&1` などデバイスへ向かないリダイレクトは対象外。
+3. 各候補を `cwd` 基準で正規化し、`deny-files.json` の `write` 対象ルールに一致すれば → **該当（deny）**。
+
+#### 定義済み builtin: `git_push_force_protected`
+
+保護ブランチ（`main` / `master`。`GUARDRAIL_PROTECTED_BRANCHES` で定義）への force push（`--force` / `-f` / `--force-with-lease`）を deny する。
+フィーチャーブランチへの force push は許可する（リベース後の運用を妨げないため）。ブランチ名が明示されない `git push --force`（現在ブランチへの push）は判定材料がないため対象外。
 
 #### 既知の制約
 

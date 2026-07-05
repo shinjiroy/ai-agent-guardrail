@@ -18,8 +18,8 @@ Cursor のファイル編集系フックは **`afterFileEdit`（編集後）** �
 この差分を以下の多層で補う:
 
 1. **シェル経由の書き込みは `beforeShellExecution` で捕捉する**
-   `echo ... > .env`、`tee .env`、`cp x .env` などは exec ルールでも止められるよう、
-   `deny-commands.json` に「機密ファイルへのリダイレクト/書き込みコマンド」を捕捉するルールを追加する（[08](08-additional-guardrails.md) 参照）。
+   `echo ... > .env`、`tee .env`、`cp x .env` などは `deny-commands.json` の `write-denied-file-via-command`
+   ルール（builtin `writes_denied_file`）が exec 判定で捕捉する。詳細は [03](03-rules-spec.md) を参照。
 2. **`afterFileEdit` で検知・警告する（検知的統制）**
    事前ブロックはできないが、機密ファイルが編集された事実を検知し、`user_message` で警告・記録する
    アダプタ（`adapters/cursor/after-file-edit.sh`）を用意する。事後検知である旨をドキュメントに明記する。

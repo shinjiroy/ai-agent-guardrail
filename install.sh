@@ -85,7 +85,7 @@ install_claude() {
   hook_entry="$(jq -n \
     --arg cmd "$hook_cmd" \
     '{
-      matcher: "Bash|Read|Write|Edit|MultiEdit",
+      matcher: "Bash|Read|Grep|Write|Edit|MultiEdit|NotebookEdit",
       hooks: [{type: "command", command: $cmd, timeout: 10}]
     }')"
 
