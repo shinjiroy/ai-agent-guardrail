@@ -31,13 +31,18 @@ input="$(cat)"
 
 tool="$(jq -r '.tool_name // empty' <<<"$input")"
 cwd="$(jq -r '.cwd // empty' <<<"$input")"
+# Cursor の Claude Code 互換フック（preToolUse）は cwd を tool_input 側に持つ
+if [[ -z "$cwd" ]]; then
+  cwd="$(jq -r '.tool_input.cwd // empty' <<<"$input")"
+fi
 
 op=""
 path=""
 command=""
 
 case "$tool" in
-  Bash)
+  # Shell は Cursor の Claude Code 互換フックが使うツール名
+  Bash|Shell)
     op="exec"
     command="$(jq -r '.tool_input.command // empty' <<<"$input")"
     ;;

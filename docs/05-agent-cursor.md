@@ -9,6 +9,21 @@
 | `beforeShellExecution` | exec | シェルコマンド実行前のブロック |
 | `beforeReadFile` | read | ファイル読み取り前のブロック |
 
+## Claude Code 互換フック（preToolUse）
+
+Cursor は `~/.cursor/hooks.json` の独自フックに加えて、**Claude Code 互換の `preToolUse` フック**
+（`~/.claude/settings.json` に登録された `PreToolUse` フック）も呼び出す。この経路では
+Claude Code 用アダプタ（`adapters/claude/pretooluse.sh`）が実行される。
+
+Claude Code 本体との差分:
+
+- シェル実行の `tool_name` が `Bash` ではなく **`Shell`**
+- トップレベルの `cwd` が空のことがあり、`tool_input.cwd` 側に入る
+
+`adapters/claude/pretooluse.sh` はこの両方に対応している。**未対応の場合、Cursor のシェル実行が
+フックを素通りしてガードレール全体がバイパスされる**ため、Claude アダプタの改修時はこの互換入力の
+テスト（`tests/fixtures/claude/cursor-compat-shell-curl-pipe.json`）を必ず維持すること。
+
 ## ⚠️ 重要な制約: 書き込みの事前ブロックができない
 
 Cursor のファイル編集系フックは **`afterFileEdit`（編集後）** のみで、編集前にブロックする
