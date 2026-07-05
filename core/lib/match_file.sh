@@ -58,6 +58,23 @@ match_file_path() {
   return 1
 }
 
+# パターン内のプレースホルダを展開する。
+# ${GUARDRAIL_INSTALL_DIR} … 実行中のガードレール自身の設置先（自己保護ルールで使用）。
+# 値が未解決の場合はパターンを不定に広げないため 1 を返し、呼び出し側でスキップする。
+expand_pattern_placeholders() {
+  local pattern="$1"
+
+  if [[ "$pattern" == *'${GUARDRAIL_INSTALL_DIR}'* ]]; then
+    local install_dir="${GUARDRAIL_INSTALL_DIR:-}"
+    if [[ -z "$install_dir" ]]; then
+      return 1
+    fi
+    pattern="${pattern//'${GUARDRAIL_INSTALL_DIR}'/${install_dir%/}}"
+  fi
+
+  printf '%s' "$pattern"
+}
+
 # ルール1件が、正規化済みパス・操作に適用されるか（パターンに一致するか）判定する
 file_rule_applies() {
   local rule_json="$1"
@@ -72,6 +89,7 @@ file_rule_applies() {
   patterns="$(jq -r '.patterns[]' <<<"$rule_json")"
   while IFS= read -r pattern; do
     [[ -z "$pattern" ]] && continue
+    pattern="$(expand_pattern_placeholders "$pattern")" || continue
     if match_file_path "$normalized_path" "$pattern"; then
       return 0
     fi

@@ -68,8 +68,8 @@
     },
     {
       "id": "guardrail-self-protection",
-      "description": "ガードレール自身のルール/スクリプト、および各エージェントのフック登録ファイルの改変防止。これらを書き換えるとガードレール自体を無効化できるため write を禁止する。",
-      "patterns": ["**/rules/*.json", "**/core/**", "**/adapters/**", "**/.claude/settings.json", "**/.claude/settings.local.json", "**/.cursor/hooks.json"],
+      "description": "実行中のガードレール本体（インストール先）と、各エージェントのフック登録ファイルの改変防止。これらを書き換えるとガードレール自体を無効化できるため write を禁止する。${GUARDRAIL_INSTALL_DIR} は実行中のガードレールの設置先に展開されるプレースホルダで、開発用 clone は対象に含まれない（docs/03-rules-spec.md 参照）。",
+      "patterns": ["${GUARDRAIL_INSTALL_DIR}/**", "**/.claude/settings.json", "**/.claude/settings.local.json", "**/.cursor/hooks.json"],
       "operations": ["write"],
       "action": "deny",
       "message": "ガードレールのルール・スクリプトおよびフック設定はエージェントによる自動編集を禁止しています。変更はレビューを経て手動で行ってください。"

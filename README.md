@@ -10,7 +10,7 @@
 - 機密ファイル（`.env`、秘密鍵、クラウド資格情報、Terraform state、シェル履歴など）の読み書きを防ぐ。ネイティブの Read/Write だけでなく、`cat`/`grep`/インタプリタ経由の読み取りや、リダイレクト・`tee`・`cp`/`mv` 経由の書き込みも捕捉する
 - `curl ... | bash` のようなリモートコード直接実行を防ぐ。中間パイプ（`| base64 -d | sh`）、インタプリタ（`| python3`）、コマンド置換（`sh -c "$(curl ...)"`）、プロセス置換（`source <(curl ...)`）も対象
 - 破壊的操作を防ぐ: ユーザーディレクトリ以下以外でのワイルドカード付き `rm`、`git reset --hard` / `git clean -f`、保護ブランチ（main/master）への force push、ブロックデバイスへの `dd`、`mkfs`/`fdisk`、`chmod -R 777`
-- ガードレール自身のルール・スクリプトおよびフック設定ファイル（`.claude/settings.json` 等）の改変を防ぐ
+- ガードレール自身（インストール先の全ファイル）およびフック設定ファイル（`.claude/settings.json` 等）の改変を防ぐ
 - Docker/Podman の CLI 上でのボリュームマウント（`-v` / `--volume` / `--mount`）を防ぐ
 - 上記をエージェント横断で **同一のルール定義** から実現する
 
@@ -42,7 +42,11 @@
 
 ## クイックスタート
 
-### 1. Hook のインストール
+### 1. インストール
+
+`install.sh` はリポジトリのリリース断面（`core/` `adapters/` `rules/`）をインストール先
+（既定: `${XDG_DATA_HOME:-~/.local/share}/ai-agent-guardrail`）へコピーし、
+フックが **インストール先** を参照するように登録する。
 
 ```bash
 # Claude Code（ユーザー全体）
@@ -53,7 +57,15 @@
 
 # 機密性を最優先する場合（Cursor の fail-closed）
 ./install.sh cursor --scope user --fail-closed
+
+# インストール先を指定する場合
+./install.sh claude --scope user --install-dir /opt/ai-agent-guardrail
 ```
+
+clone（開発用）とインストール先（実行用）を分離することで、ガードレールの自己保護ルール
+（`guardrail-self-protection`）は **実行中のインストール先にのみ** 効き、clone は通常のリポジトリとして
+エージェントでも編集できる。ルールやコードを更新したら、clone で変更・テストした後に `install.sh` を
+再実行してインストール先へ反映する。
 
 ### 2. テスト実行（Docker）
 
@@ -80,7 +92,7 @@ echo '{"operation":"read","path":"/home/user/.env","cwd":"/home/user"}' \
 ```text
 ai-agent-guardrail/
 ├── README.md
-├── install.sh                 # Hook 登録補助
+├── install.sh                 # インストール先へのコピーと Hook 登録
 ├── docker-compose.yaml          # ローカルテスト・確認用
 ├── docs/                      # 設計ドキュメント
 ├── rules/                     # 禁止ルール定義（JSON）
@@ -108,7 +120,9 @@ ai-agent-guardrail/
 | Cursor | `beforeReadFile` | `adapters/cursor/before-read-file.sh` |
 | Cursor | `afterFileEdit`（事後検知） | `adapters/cursor/after-file-edit.sh` |
 
-Cursor ではファイル編集の事前ブロックができない制約がある。詳細は [docs/05-agent-cursor.md](docs/05-agent-cursor.md) を参照。
+Cursor は Claude Code 互換の `preToolUse` フック（`~/.claude/settings.json` の PreToolUse 登録）も呼び出すため、
+互換フックが有効な環境ではファイル編集の事前ブロックも効く。独自フック（`hooks.json`）のみの環境では
+編集は afterFileEdit の事後検知となる。詳細は [docs/05-agent-cursor.md](docs/05-agent-cursor.md) を参照。
 
 ## ルールの追加
 
@@ -134,6 +148,7 @@ Cursor ではファイル編集の事前ブロックができない制約があ�
 
 | 変数 | 用途 |
 | --- | --- |
-| `GUARDRAIL_HOME` | リポジトリの絶対パス（アダプタが core を解決する） |
+| `GUARDRAIL_HOME` | ガードレール設置先の絶対パス（アダプタが core を解決する。既定はアダプタ自身の位置から導出） |
+| `GUARDRAIL_INSTALL_DIR` | 自己保護ルールが守る設置先パス（既定は実行中の `core/` の親。`install.sh` の既定インストール先の上書きにも使える） |
 | `GUARDRAIL_RULES_DIR` | ルール JSON のディレクトリ（テスト・カスタム配布用） |
 | `GUARDRAIL_FAIL_CLOSED` | アダプタ（Claude Code / Cursor）の fail-closed 有効化（`true`）。エンジン異常時に allow せず deny する |

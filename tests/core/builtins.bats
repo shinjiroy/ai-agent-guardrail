@@ -9,6 +9,8 @@ setup() {
   done
   export TEST_HOME="/home/testuser"
   export HOME="${TEST_HOME}"
+  # 自己保護ルールの ${GUARDRAIL_INSTALL_DIR} プレースホルダをテスト用パスへ固定する
+  export GUARDRAIL_INSTALL_DIR="/home/testuser/ai-agent-guardrail"
 
   # shellcheck source=../../core/lib/match_file.sh
   source "${GUARDRAIL_HOME}/core/lib/match_file.sh"

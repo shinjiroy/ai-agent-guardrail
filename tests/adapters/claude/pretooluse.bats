@@ -37,6 +37,24 @@ assert_claude_deny() {
   [ -z "$output" ]
 }
 
+@test "claude: cursor-compat Shell tool with curl|bash is denied" {
+  run bash "$ADAPTER" < "${FIXTURES}/cursor-compat-shell-curl-pipe.json"
+  assert_success
+  assert_claude_deny
+}
+
+@test "claude: cursor-compat Shell tool with benign command is allowed" {
+  run bash "$ADAPTER" <<< '{"tool_name":"Shell","tool_input":{"command":"ls -la","cwd":"/tmp"},"cwd":"","hook_event_name":"preToolUse"}'
+  assert_success
+  [ -z "$output" ]
+}
+
+@test "claude: cursor-compat Shell resolves cwd from tool_input (relative .env write)" {
+  run bash "$ADAPTER" <<< '{"tool_name":"Shell","tool_input":{"command":"echo x > .env","cwd":"/home/testuser/project"},"cwd":"","hook_event_name":"preToolUse"}'
+  assert_success
+  assert_claude_deny
+}
+
 @test "claude: unknown tool passes through" {
   run bash "$ADAPTER" <<< '{"tool_name":"Grep","tool_input":{}}'
   assert_success

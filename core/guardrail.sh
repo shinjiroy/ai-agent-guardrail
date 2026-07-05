@@ -3,6 +3,10 @@ set -euo pipefail
 
 GUARDRAIL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARDRAIL_RULES_DIR="${GUARDRAIL_RULES_DIR:-${GUARDRAIL_SCRIPT_DIR}/../rules}"
+# 実行中のガードレール自身の設置先（core/ の親）。deny-files.json の
+# ${GUARDRAIL_INSTALL_DIR} プレースホルダの解決に使う（自己保護ルールの適用範囲）。
+GUARDRAIL_INSTALL_DIR="${GUARDRAIL_INSTALL_DIR:-$(cd "${GUARDRAIL_SCRIPT_DIR}/.." && pwd)}"
+export GUARDRAIL_INSTALL_DIR
 
 # shellcheck source=lib/json.sh
 source "${GUARDRAIL_SCRIPT_DIR}/lib/json.sh"

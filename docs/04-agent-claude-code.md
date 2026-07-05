@@ -11,6 +11,7 @@
 | ツール | operation | 備考 |
 | --- | --- | --- |
 | `Bash` | exec | `tool_input.command` を判定 |
+| `Shell` | exec | Cursor の Claude Code 互換フック（`preToolUse`）が使うツール名。`cwd` はトップレベルが空のとき `tool_input.cwd` から補完する（[05-agent-cursor.md](05-agent-cursor.md) 参照） |
 | `Read` | read | `tool_input.file_path` を判定 |
 | `Grep` | read | `tool_input.path` を判定。ファイル内容を出力しうるため read 扱い。`path` 省略時（カレント配下検索）は個別ファイル判定できないため素通し |
 | `Write` | write | `tool_input.file_path` を判定 |
@@ -97,7 +98,7 @@ fi
 exit 0
 ```
 
-> `GUARDRAIL_HOME` はこのリポジトリの絶対パス。`${CLAUDE_PROJECT_DIR}` プレースホルダや環境変数で解決する。
+> `GUARDRAIL_HOME` はガードレール設置先（インストール先）の絶対パス。アダプタが自身の位置から導出するため、通常は設定不要。
 
 ## 登録方法（settings.json）
 

@@ -3,9 +3,11 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: install.sh <agent> [--scope user|project] [--fail-closed]
+Usage: install.sh <agent> [--scope user|project] [--fail-closed] [--install-dir DIR]
 
-Install guardrail hooks for the specified AI coding agent.
+Install the guardrail as a versioned copy and register hooks for the
+specified AI coding agent. Hooks point at the installed copy, not at
+this repository, so the development clone stays editable.
 
 Arguments:
   agent          claude | cursor
@@ -13,6 +15,9 @@ Arguments:
 Options:
   --scope        user (default) or project
   --fail-closed  Enable fail-closed policy for Cursor hooks
+  --install-dir  Installation directory
+                 (default: $XDG_DATA_HOME/ai-agent-guardrail or
+                  ~/.local/share/ai-agent-guardrail)
   -h, --help     Show this help
 EOF
 }
@@ -24,6 +29,7 @@ resolve_guardrail_home() {
 }
 
 GUARDRAIL_HOME="$(resolve_guardrail_home)"
+INSTALL_DIR="${GUARDRAIL_INSTALL_DIR:-${XDG_DATA_HOME:-${HOME}/.local/share}/ai-agent-guardrail}"
 AGENT=""
 SCOPE="user"
 FAIL_CLOSED="false"
@@ -36,6 +42,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --scope)
       SCOPE="${2:-}"
+      shift 2
+      ;;
+    --install-dir)
+      INSTALL_DIR="${2:-}"
       shift 2
       ;;
     --fail-closed)
@@ -65,10 +75,34 @@ if [[ "$SCOPE" != "user" && "$SCOPE" != "project" ]]; then
   exit 1
 fi
 
+if [[ -z "$INSTALL_DIR" ]]; then
+  echo "install.sh: --install-dir requires a directory" >&2
+  exit 1
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "install.sh: jq is required" >&2
   exit 1
 fi
+
+# リポジトリのリリース断面（core/adapters/rules）をインストール先へコピーする。
+# フックはインストール先を参照するため、開発 clone とは独立に動作する。
+install_snapshot() {
+  INSTALL_DIR="$(mkdir -p "$INSTALL_DIR" && cd "$INSTALL_DIR" && pwd)"
+
+  # インストール先から直接実行された場合はコピー不要
+  if [[ "$INSTALL_DIR" == "$GUARDRAIL_HOME" ]]; then
+    return 0
+  fi
+
+  local dir
+  for dir in core adapters rules; do
+    rm -rf "${INSTALL_DIR:?}/${dir}"
+    cp -R "${GUARDRAIL_HOME}/${dir}" "${INSTALL_DIR}/${dir}"
+  done
+
+  echo "Installed guardrail files: $INSTALL_DIR"
+}
 
 install_claude() {
   local settings_file hook_cmd
@@ -78,7 +112,7 @@ install_claude() {
     settings_file="${PWD}/.claude/settings.json"
   fi
 
-  hook_cmd="${GUARDRAIL_HOME}/adapters/claude/pretooluse.sh"
+  hook_cmd="${INSTALL_DIR}/adapters/claude/pretooluse.sh"
   mkdir -p "$(dirname "$settings_file")"
 
   local hook_entry
@@ -89,9 +123,17 @@ install_claude() {
       hooks: [{type: "command", command: $cmd, timeout: 10}]
     }')"
 
+  # 本ガードレールのアダプタを指す既存エントリ（旧インストール先や clone 直参照の残骸を含む）を
+  # 除去してから追記する。判定はコマンドパス末尾がアダプタの相対パスに一致するかで行い、
+  # 本ガードレールのフックだけを単独で持つエントリのみ除去する（無関係のフックは保持する）。
   if [[ -f "$settings_file" ]]; then
     jq --argjson entry "$hook_entry" \
-      '.hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select(.hooks[0].command != $entry.hooks[0].command))) + [$entry])' \
+      '.hooks.PreToolUse = (((.hooks.PreToolUse // [])
+        | map(select(
+            ((.hooks | type == "array" and length == 1)
+             and ((.hooks[0].command // "") | endswith("/adapters/claude/pretooluse.sh")))
+            | not)))
+        + [$entry])' \
       "$settings_file" > "${settings_file}.tmp"
     mv "${settings_file}.tmp" "$settings_file"
   else
@@ -115,25 +157,28 @@ install_cursor() {
 
   local shell_hook read_hook after_hook
   shell_hook="$(jq -n \
-    --arg cmd "${GUARDRAIL_HOME}/adapters/cursor/before-shell.sh" \
+    --arg cmd "${INSTALL_DIR}/adapters/cursor/before-shell.sh" \
     --argjson fc "$fail_closed_json" \
     '{command: $cmd, type: "command", failClosed: $fc}')"
   read_hook="$(jq -n \
-    --arg cmd "${GUARDRAIL_HOME}/adapters/cursor/before-read-file.sh" \
+    --arg cmd "${INSTALL_DIR}/adapters/cursor/before-read-file.sh" \
     --argjson fc "$fail_closed_json" \
     '{command: $cmd, type: "command", failClosed: $fc}')"
   after_hook="$(jq -n \
-    --arg cmd "${GUARDRAIL_HOME}/adapters/cursor/after-file-edit.sh" \
+    --arg cmd "${INSTALL_DIR}/adapters/cursor/after-file-edit.sh" \
     '{command: $cmd, type: "command"}')"
 
+  # 本ガードレールのアダプタを指す既存エントリ（旧インストール先や clone 直参照の残骸を含む）を
+  # 除去してから追記する。判定はコマンドパス末尾がアダプタの相対パスに一致するかで行い、
+  # 無関係のフックは保持する。
   if [[ -f "$hooks_file" ]]; then
     jq \
       --argjson shell "$shell_hook" \
       --argjson read "$read_hook" \
       --argjson after "$after_hook" \
-      '.hooks.beforeShellExecution = (((.hooks.beforeShellExecution // []) | map(select(.command != $shell.command))) + [$shell])
-       | .hooks.beforeReadFile = (((.hooks.beforeReadFile // []) | map(select(.command != $read.command))) + [$read])
-       | .hooks.afterFileEdit = (((.hooks.afterFileEdit // []) | map(select(.command != $after.command))) + [$after])' \
+      '.hooks.beforeShellExecution = (((.hooks.beforeShellExecution // []) | map(select(((.command // "") | endswith("/adapters/cursor/before-shell.sh")) | not))) + [$shell])
+       | .hooks.beforeReadFile = (((.hooks.beforeReadFile // []) | map(select(((.command // "") | endswith("/adapters/cursor/before-read-file.sh")) | not))) + [$read])
+       | .hooks.afterFileEdit = (((.hooks.afterFileEdit // []) | map(select(((.command // "") | endswith("/adapters/cursor/after-file-edit.sh")) | not))) + [$after])' \
       "$hooks_file" > "${hooks_file}.tmp"
     mv "${hooks_file}.tmp" "$hooks_file"
   else
@@ -150,6 +195,8 @@ install_cursor() {
 
   echo "Installed Cursor hooks: $hooks_file"
 }
+
+install_snapshot
 
 case "$AGENT" in
   claude) install_claude ;;

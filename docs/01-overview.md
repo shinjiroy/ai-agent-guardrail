@@ -28,8 +28,10 @@
    `git reset --hard` / `git clean -f`、保護ブランチ（main/master）への force push、
    ブロックデバイスへの `dd`、`mkfs`/`fdisk`、再帰的な `chmod 777` を禁止する。
 4. **ガードレール自身の改変禁止**
-   ルール・スクリプト（`rules/` `core/` `adapters/`）および各エージェントのフック設定ファイル
+   実行中のガードレール本体（インストール先の全ファイル）および各エージェントのフック設定ファイル
    （`.claude/settings.json` 等）へのエージェントによる書き込みを禁止する。
+   開発用 clone は保護対象に含まれないため、ガードレール自体の開発はエージェントでも行える
+   （[02-architecture.md](02-architecture.md) の「開発 clone とインストール先の分離」参照）。
 5. **Docker/Podman の CLI ボリュームマウント禁止**
    `docker run -v ...` 等、CLI 上での `-v` / `--volume` / `--mount` 指定を禁止する。
    正当なマウントは `docker-compose.yaml` 等に定義する運用を想定する。

@@ -75,8 +75,15 @@
 ### タスク6: インストール補助 `install.sh`
 
 - 引数でエージェント種別（`claude` / `cursor`）と対象スコープ（user/project）を受け取る
-- 対応する設定ファイル（`settings.json` / `hooks.json`）へ Hook 定義を **マージ**（既存設定を壊さない）
-- 絶対パス解決（`GUARDRAIL_HOME`）を行う
+- リポジトリのリリース断面（`core/` `adapters/` `rules/`）をインストール先へコピーする
+  （既定: `${XDG_DATA_HOME:-~/.local/share}/ai-agent-guardrail`。`--install-dir` で上書き可能）
+- 対応する設定ファイル（`settings.json` / `hooks.json`）へ Hook 定義を **マージ**（既存設定を壊さない）。
+  Hook のコマンドパスは **インストール先** のアダプタを指す（開発 clone を参照しない）
+- 本ガードレールのアダプタを指す既存エントリ（旧インストール先・clone 直参照の残骸）は除去してから追記する。
+  判定はコマンドパス末尾がアダプタの相対パス（`/adapters/claude/pretooluse.sh` 等）に一致するかで行い、
+  無関係のフックは保持する（Claude の `settings.json` では、本ガードレールのフックだけを単独で持つ
+  エントリのみ除去し、他のフックと同居するエントリには触れない）
+- 再インストールでインストール先のコピーを丸ごと入れ替える（更新フロー: clone で変更 → テスト → 再インストール）
 - `install.sh` 自体にもテストを用意する
 
 ## 実装順序の推奨
