@@ -16,6 +16,9 @@ export GUARDRAIL_HOME
 
 GUARDRAIL_SCRIPT_DIR="${GUARDRAIL_HOME}/core"
 GUARDRAIL_RULES_DIR="${GUARDRAIL_RULES_DIR:-${GUARDRAIL_HOME}/rules}"
+# core/guardrail.sh を経由しないため、自己保護ルールのプレースホルダ解決用にここで設定する
+GUARDRAIL_INSTALL_DIR="${GUARDRAIL_INSTALL_DIR:-${GUARDRAIL_HOME}}"
+export GUARDRAIL_INSTALL_DIR
 
 # shellcheck source=../../core/lib/json.sh
 source "${GUARDRAIL_SCRIPT_DIR}/lib/json.sh"

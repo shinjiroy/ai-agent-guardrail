@@ -60,6 +60,31 @@ ai-agent-guardrail/
 └── docker-compose.yaml
 ```
 
+## 開発 clone とインストール先の分離
+
+ガードレールは **インストール先のコピー**（プラグイン相当の配布物）として動作させる。
+`install.sh` がリポジトリのリリース断面（`core/` `adapters/` `rules/`）をインストール先
+（既定: `${XDG_DATA_HOME:-~/.local/share}/ai-agent-guardrail`）へコピーし、フック登録は
+インストール先のアダプタを指す。
+
+```
+開発用 clone（任意の場所）            インストール先（実行用）
+~/projects/ai-agent-guardrail   →   ~/.local/share/ai-agent-guardrail
+  ・エージェントで編集可能      install.sh    ・フックが参照する実体
+  ・テストを実行して検証         （コピー）    ・自己保護ルールの保護対象
+```
+
+この分離により、次の2つを両立する。
+
+- **実行中のガードレールは改変不可**: 自己保護ルール（`guardrail-self-protection`）は
+  `${GUARDRAIL_INSTALL_DIR}/**`（実行中のガードレールの設置先全体）への write を deny する。
+  `GUARDRAIL_INSTALL_DIR` は `core/guardrail.sh` が自身の位置（`core/` の親）から導出するため、
+  フック経由で動くのは常にインストール先であり、その本体が保護される。
+- **開発 clone は通常のリポジトリとして編集可能**: clone のパスは保護パターンに一致しないため、
+  ガードレール自体の開発（ルール追記・コード修正）をエージェントで行える。
+
+更新フロー: clone で変更 → テスト（Docker）→ `install.sh` を再実行してインストール先へ反映。
+
 ## 標準判定リクエスト（内部共通フォーマット）
 
 アダプタがエージェント固有入力から組み立て、`core/guardrail.sh` の stdin へ渡すJSON。

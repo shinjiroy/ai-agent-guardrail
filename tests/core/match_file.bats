@@ -41,6 +41,32 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "placeholder: \${GUARDRAIL_INSTALL_DIR} expands to install dir" {
+  export GUARDRAIL_INSTALL_DIR="/opt/guardrail"
+  run expand_pattern_placeholders '${GUARDRAIL_INSTALL_DIR}/**'
+  [ "$status" -eq 0 ]
+  [ "$output" = "/opt/guardrail/**" ]
+}
+
+@test "placeholder: trailing slash in install dir is normalized" {
+  export GUARDRAIL_INSTALL_DIR="/opt/guardrail/"
+  run expand_pattern_placeholders '${GUARDRAIL_INSTALL_DIR}/rules/*.json'
+  [ "$status" -eq 0 ]
+  [ "$output" = "/opt/guardrail/rules/*.json" ]
+}
+
+@test "placeholder: unresolved placeholder returns failure (pattern is skipped)" {
+  unset GUARDRAIL_INSTALL_DIR
+  run expand_pattern_placeholders '${GUARDRAIL_INSTALL_DIR}/**'
+  [ "$status" -eq 1 ]
+}
+
+@test "placeholder: pattern without placeholder passes through unchanged" {
+  run expand_pattern_placeholders '**/.env'
+  [ "$status" -eq 0 ]
+  [ "$output" = "**/.env" ]
+}
+
 @test "normalize_path: relative path with cwd" {
   run normalize_path "foo/.env" "/home/user/project"
   [ "$status" -eq 0 ]

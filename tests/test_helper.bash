@@ -22,6 +22,8 @@ setup() {
   export GUARDRAIL_SCRIPT="${GUARDRAIL_HOME}/core/guardrail.sh"
   export TEST_HOME="/home/testuser"
   export HOME="${TEST_HOME}"
+  # 自己保護ルールの ${GUARDRAIL_INSTALL_DIR} プレースホルダをテスト用パスへ固定する
+  export GUARDRAIL_INSTALL_DIR="/home/testuser/ai-agent-guardrail"
 }
 
 run_guardrail() {

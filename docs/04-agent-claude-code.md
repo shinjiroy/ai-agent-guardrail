@@ -97,7 +97,7 @@ fi
 exit 0
 ```
 
-> `GUARDRAIL_HOME` はこのリポジトリの絶対パス。`${CLAUDE_PROJECT_DIR}` プレースホルダや環境変数で解決する。
+> `GUARDRAIL_HOME` はガードレール設置先（インストール先）の絶対パス。アダプタが自身の位置から導出するため、通常は設定不要。
 
 ## 登録方法（settings.json）
 
