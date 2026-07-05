@@ -123,9 +123,17 @@ install_claude() {
       hooks: [{type: "command", command: $cmd, timeout: 10}]
     }')"
 
+  # 本ガードレールのアダプタを指す既存エントリ（旧インストール先や clone 直参照の残骸を含む）を
+  # 除去してから追記する。判定はコマンドパス末尾がアダプタの相対パスに一致するかで行い、
+  # 本ガードレールのフックだけを単独で持つエントリのみ除去する（無関係のフックは保持する）。
   if [[ -f "$settings_file" ]]; then
     jq --argjson entry "$hook_entry" \
-      '.hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select(.hooks[0].command != $entry.hooks[0].command))) + [$entry])' \
+      '.hooks.PreToolUse = (((.hooks.PreToolUse // [])
+        | map(select(
+            ((.hooks | type == "array" and length == 1)
+             and ((.hooks[0].command // "") | endswith("/adapters/claude/pretooluse.sh")))
+            | not)))
+        + [$entry])' \
       "$settings_file" > "${settings_file}.tmp"
     mv "${settings_file}.tmp" "$settings_file"
   else
@@ -160,14 +168,17 @@ install_cursor() {
     --arg cmd "${INSTALL_DIR}/adapters/cursor/after-file-edit.sh" \
     '{command: $cmd, type: "command"}')"
 
+  # 本ガードレールのアダプタを指す既存エントリ（旧インストール先や clone 直参照の残骸を含む）を
+  # 除去してから追記する。判定はコマンドパス末尾がアダプタの相対パスに一致するかで行い、
+  # 無関係のフックは保持する。
   if [[ -f "$hooks_file" ]]; then
     jq \
       --argjson shell "$shell_hook" \
       --argjson read "$read_hook" \
       --argjson after "$after_hook" \
-      '.hooks.beforeShellExecution = (((.hooks.beforeShellExecution // []) | map(select(.command != $shell.command))) + [$shell])
-       | .hooks.beforeReadFile = (((.hooks.beforeReadFile // []) | map(select(.command != $read.command))) + [$read])
-       | .hooks.afterFileEdit = (((.hooks.afterFileEdit // []) | map(select(.command != $after.command))) + [$after])' \
+      '.hooks.beforeShellExecution = (((.hooks.beforeShellExecution // []) | map(select(((.command // "") | endswith("/adapters/cursor/before-shell.sh")) | not))) + [$shell])
+       | .hooks.beforeReadFile = (((.hooks.beforeReadFile // []) | map(select(((.command // "") | endswith("/adapters/cursor/before-read-file.sh")) | not))) + [$read])
+       | .hooks.afterFileEdit = (((.hooks.afterFileEdit // []) | map(select(((.command // "") | endswith("/adapters/cursor/after-file-edit.sh")) | not))) + [$after])' \
       "$hooks_file" > "${hooks_file}.tmp"
     mv "${hooks_file}.tmp" "$hooks_file"
   else

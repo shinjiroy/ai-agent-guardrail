@@ -139,6 +139,71 @@ teardown() {
   jq -e '.hooks.PreToolUse | length >= 1' "${HOME}/.claude/settings.json" >/dev/null
 }
 
+@test "install.sh: claude removes stale guardrail entries pointing at old paths" {
+  mkdir -p "${HOME}/.claude"
+  jq -n '{hooks: {PreToolUse: [
+    {matcher: "Bash", hooks: [{type: "command", command: "/old/clone/adapters/claude/pretooluse.sh", timeout: 10}]},
+    {matcher: "Bash", hooks: [{type: "command", command: "/somewhere/unrelated-hook.sh"}]}
+  ]}}' > "${HOME}/.claude/settings.json"
+
+  run bash "$INSTALL_SCRIPT" claude --scope user
+  assert_success
+  # 旧ガードレールエントリは消え、無関係フック + 新エントリの2件になる
+  jq -e '.hooks.PreToolUse | length == 2' "${HOME}/.claude/settings.json" >/dev/null
+  jq -e '[.hooks.PreToolUse[].hooks[0].command] | index("/old/clone/adapters/claude/pretooluse.sh") == null' \
+    "${HOME}/.claude/settings.json" >/dev/null
+  jq -e '[.hooks.PreToolUse[].hooks[0].command] | index("/somewhere/unrelated-hook.sh") != null' \
+    "${HOME}/.claude/settings.json" >/dev/null
+  jq -e --arg cmd "${DEFAULT_INSTALL_DIR}/adapters/claude/pretooluse.sh" \
+    '[.hooks.PreToolUse[].hooks[0].command] | index($cmd) != null' \
+    "${HOME}/.claude/settings.json" >/dev/null
+}
+
+@test "install.sh: claude keeps entries that bundle guardrail with other hooks" {
+  mkdir -p "${HOME}/.claude"
+  # 1エントリに複数フックが同居する場合は他人のフックを巻き込まないよう除去しない
+  jq -n '{hooks: {PreToolUse: [
+    {matcher: "Bash", hooks: [
+      {type: "command", command: "/somewhere/other.sh"},
+      {type: "command", command: "/old/clone/adapters/claude/pretooluse.sh"}
+    ]}
+  ]}}' > "${HOME}/.claude/settings.json"
+
+  run bash "$INSTALL_SCRIPT" claude --scope user
+  assert_success
+  jq -e '.hooks.PreToolUse | length == 2' "${HOME}/.claude/settings.json" >/dev/null
+  jq -e '[.hooks.PreToolUse[].hooks[].command] | index("/somewhere/other.sh") != null' \
+    "${HOME}/.claude/settings.json" >/dev/null
+}
+
+@test "install.sh: cursor removes stale guardrail entries but keeps unrelated hooks" {
+  mkdir -p "${HOME}/.cursor"
+  jq -n '{hooks: {
+    beforeShellExecution: [
+      {command: "/old/clone/adapters/cursor/before-shell.sh", type: "command", failClosed: true},
+      {command: "/somewhere/unrelated-hook.sh", type: "command"}
+    ],
+    beforeReadFile: [
+      {command: "/old/clone/adapters/cursor/before-read-file.sh", type: "command", failClosed: true}
+    ],
+    afterFileEdit: [
+      {command: "/old/clone/adapters/cursor/after-file-edit.sh", type: "command"}
+    ]
+  }}' > "${HOME}/.cursor/hooks.json"
+
+  run bash "$INSTALL_SCRIPT" cursor --scope user
+  assert_success
+  jq -e '.hooks.beforeShellExecution | length == 2' "${HOME}/.cursor/hooks.json" >/dev/null
+  jq -e '[.hooks.beforeShellExecution[].command] | index("/old/clone/adapters/cursor/before-shell.sh") == null' \
+    "${HOME}/.cursor/hooks.json" >/dev/null
+  jq -e '[.hooks.beforeShellExecution[].command] | index("/somewhere/unrelated-hook.sh") != null' \
+    "${HOME}/.cursor/hooks.json" >/dev/null
+  jq -e '.hooks.beforeReadFile | length == 1' "${HOME}/.cursor/hooks.json" >/dev/null
+  jq -e '.hooks.afterFileEdit | length == 1' "${HOME}/.cursor/hooks.json" >/dev/null
+  jq -e --arg cmd "${DEFAULT_INSTALL_DIR}/adapters/cursor/before-read-file.sh" \
+    '.hooks.beforeReadFile[0].command == $cmd' "${HOME}/.cursor/hooks.json" >/dev/null
+}
+
 @test "install.sh: rejects unknown agent" {
   run bash "$INSTALL_SCRIPT" unknown
   assert_failure
